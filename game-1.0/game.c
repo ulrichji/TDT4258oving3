@@ -255,13 +255,16 @@ void playLevel(uint16_t *screen,int *level,int fd)
 			else if(platform_x + platformSizeX > SCREENWIDTH)
 				platform_x = SCREENWIDTH - platformSizeX;
 
-			clearRect(screen,oldPlatform,(int)platform_y,platformSizeX,platformSizeY);
+			if(platform_sx < 0)
+				clearRect(screen,oldPlatform + platformSizeX,(int)platform_y,absolute(oldPlatform - drawPlatform),platformSizeY);
+			else
+				clearRect(screen,oldPlatform,(int)platform_y,absolute(oldPlatform - drawPlatform),platformSizeY);
 
 			drawImage(screen,(int)platform_x,(int)platform_y,platformSizeX,platformSizeY,platformData);
 
-			rect.dx = oldPlatform;
+			rect.dx = min(oldPlatform,drawPlatform);
 			rect.dy = (int)platform_y;
-			rect.width = platformSizeX;
+			rect.width = platformSizeX + abs(oldPlatform - drawPlatform);
 			rect.height = platformSizeY;
 			ioctl(fd,0x4680,&rect);
 		}
