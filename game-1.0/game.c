@@ -59,7 +59,8 @@ void gamepad_handler(int signum) {
 		//right button
 		else if(btn_id & SW3)
 			platform_sx = 1;
-
+		else
+			platform_sx = 0;
 		printf("Read %u from device file\n", btn_id);
 	}
 }
