@@ -244,7 +244,7 @@ void playLevel(uint16_t *screen,int *level,int fd)
 		drawBallx = (int)ballx;
 		drawBally = (int)bally;
 
-		if(platform_sx < -0.0001 && platform_sx > 0.0001)
+		if(platform_sx < -0.0001 || platform_sx > 0.0001)
 		{
 			int oldPlatform = (int)platform_x;
 			platform_x += platform_sx*platform_speed;
