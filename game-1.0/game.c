@@ -34,21 +34,21 @@ int platform_sx=0;
 
 void gamepad_handler(int signum) {
 	printf("Entered handlerrr\n");
-	int btn_id;
-	int readstatus = read(driver_descriptor, &btn_id, 1);
+	unsigned btn_id;
+	int readstatus = read(driver_descriptor, &btn_id, sizeof(int));
 
 	if(readstatus < 0) {
 		printf("Failed to read from device file\n");
 	}
 	else {
 		//press left button
-		if(readstatus & (~1 << 0))
-			platform_sx = -1;
+		if(btn_id == 1) {
+			printf("AAA\n");
+			platform_sx = -1;}
 		//right button
-		else if(readstatus & (~1 << 2))
+		else if(btn_id == 4)
 			platform_sx = 1;
-		else
-			platform_sx = 0;
+
 		printf("Read %u from device file\n", btn_id);
 	}
 }

@@ -44,10 +44,10 @@ static ssize_t gamepad_write(struct file *filp, char __user *buf, size_t count, 
 
 static ssize_t gamepad_read(struct file *filp, char __user *buf, size_t count, loff_t *f_pos) {
 	printk("Read occureddd\n");
-	printk("Read %u", *GPIO_PC_DIN);
-	int btn_id = ~(*GPIO_PC_DIN);
-	copy_to_user(buf, &btn_id, 1);
-	return 1;
+	unsigned btn_id = (~(*GPIO_PC_DIN) & 0xFF);
+	printk("Read %u", btn_id);
+	copy_to_user(buf, &btn_id, sizeof(int));
+	return sizeof(int);
 }
 
 static ssize_t gamepad_open(struct inode *inode, struct file *filp) {
