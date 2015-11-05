@@ -22,10 +22,10 @@
 #define STARTBALLY 180
 #define SCREENWIDTH 320
 #define SCREENHEIGHT 240
-#define BALLSTARTSPEED 0.002
+#define BALLSTARTSPEED 0.5
 #define PLATFORMSTARTX (SCREENWIDTH / 2) - 20 	//Platform size should be constant
 #define PLATFORMSTARTY 220
-#define PLATFORMSTARTSPEED 0.02
+#define PLATFORMSTARTSPEED 0.2
 
 #define SW1 0x1
 #define SW3 0x4

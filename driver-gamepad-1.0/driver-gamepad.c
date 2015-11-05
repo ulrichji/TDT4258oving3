@@ -110,7 +110,8 @@ static int __init template_init(void)
 	*GPIO_PC_MODEL = 0x33333333; //Set pins C0 - C7 as input
 	*GPIO_PC_DOUT = 0xFF; //Set pins to active low?
 	*GPIO_EXTIPSELL = 0x22222222; //Set all pins to trigger interrupt
-	*GPIO_EXTIFALL = 0xFF; //Set pins to trigger interrupt on falling edge	
+	*GPIO_EXTIFALL = 0xFF; //Set pins to trigger interrupt on falling edge
+	*GPIO_EXTIRISE = 0xFF; //Set pins to trigger interrupt on rising edge	
 	*GPIO_IEN = 0xFF; //Enable interrupt
 	*ISER0 |= 0x802; //enable interrupt generation for gpio even and odd.	
 
