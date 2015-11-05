@@ -1,3 +1,5 @@
+#define BOARDSQUARESWIDE 16
+#define BOARDSQUARESHIGH 16
 
 int board1 [16*16] =   {0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,
 						1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,

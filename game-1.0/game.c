@@ -18,6 +18,18 @@
 
 #define RGB(r,g,b) ((r<<11) | (g<<5) | (b<<0))
 
+#define STARTBALLX 160
+#define STARTBALLY 180
+#define SCREENWIDTH 320
+#define SCREENHEIGHT 240
+#define BALLSTARTSPEED 0.002
+#define PLATFORMSTARTX (SCREENWIDTH / 2) - 20 	//Platform size should be constant
+#define PLATFORMSTARTY 220
+#define PLATFORMSTARTSPEED 0.02
+
+#define SW1 0x1
+#define SW3 0x4
+
 struct Image
 {
 	int x;
@@ -42,10 +54,10 @@ void gamepad_handler(int signum) {
 	}
 	else {
 		//press left button
-		if(readstatus & (~1 << 0))
+		if(btn_id & SW1)
 			platform_sx = -1;
 		//right button
-		else if(readstatus & (~1 << 2))
+		else if(btn_id & SW3)
 			platform_sx = 1;
 		else
 			platform_sx = 0;
@@ -98,7 +110,7 @@ void drawImage(uint16_t *screen,int x,int y,int dx,int dy,const uint16_t *image)
 	{
 		for(u=x;u<x+dx;u++)
 		{
-			screen[u+(i*320)] = image[xCount+(yCount*dx)];
+			screen[u+(i*SCREENWIDTH)] = image[xCount+(yCount*dx)];
 			xCount++;
 		}
 		xCount = 0;
@@ -112,9 +124,7 @@ void drawRect(uint16_t *screen,int x,int y,int dx,int dy,uint16_t color)
 	for(i=y;i<y+dy;i++)
 	{
 		for(u=x;u<x+dx;u++)
-		{
-			screen[u+(i*320)] = color;
-		}
+			screen[u+(i*SCREENWIDTH)] = color;
 	}
 }
 
@@ -124,16 +134,14 @@ void clearRect(uint16_t *screen,int x,int y,int dx,int dy)
 	for(i=y;i<y+dy;i++)
 	{
 		for(u=x;u<x+dx;u++)
-		{
-			screen[u+(i*320)] = 0;
-		}
+			screen[u+(i*SCREENWIDTH)] = 0;
 	}
 }
 
 int* loadMap(uint16_t *screen,int level)
 {
 	int i=0,u=0;
-	int* squareData = (int*)malloc(16*16*sizeof(int));
+	int* squareData = (int*)malloc(BOARDSQUARESWIDE*BOARDSQUARESHIGH*sizeof(int));
 
 	int * board;
 
@@ -148,12 +156,12 @@ int* loadMap(uint16_t *screen,int level)
 		break;
 	}
 
-	for(i=0;i<16;i++)
+	for(i=0;i<BOARDSQUARESHIGH;i++)
 	{
-		for(u=0;u<16;u++)
+		for(u=0;u<BOARDSQUARESWIDE;u++)
 		{
-			squareData[u+(i*16)] = board[u+(i*16)];
-			switch(board[u+(i*16)])
+			squareData[u+(i*BOARDSQUARESWIDE)] = board[u+(i*BOARDSQUARESWIDE)];
+			switch(board[u+(i*BOARDSQUARESWIDE)])
 			{
 				case 1:
 					drawImage(screen,u*grayBlockSizeX,i*grayBlockSizeY,grayBlockSizeX,grayBlockSizeY,grayBlockData);
@@ -173,8 +181,8 @@ void refreshScreen(int fd)
 
 	rect.dx = 0;
 	rect.dy = 0;
-	rect.width = 320;
-	rect.height = 240;
+	rect.width = SCREENWIDTH;
+	rect.height = SCREENHEIGHT;
 	ioctl(fd,0x4680,&rect);
 }
 
@@ -182,11 +190,12 @@ int countRemovableBlocks(int *level)
 {
 	int i,u;
 	int count = 0;
-	for(i=0;i<16;i++)
+	for(i=0;i<BOARDSQUARESHIGH;i++)
 	{
-		for(u=0;u<16;u++)
+		for(u=0;u<BOARDSQUARESWIDE;u++)
 		{
-			if(level[u+(i*16)] >= 2)
+			//since 0 is no block and 1 is an unremovable block
+			if(level[u+(i*BOARDSQUARESWIDE)] >= 2)
 				count++;
 		}
 	}
@@ -203,12 +212,12 @@ int min(int a,int b)
 void playLevel(uint16_t *screen,int *level,int fd)
 {
 	int removeCount = countRemovableBlocks(level);
-	float ballx=160,bally=180;
-	float ballsx=0.0053277*3.0,ballsy=0.056*2.0;
-
-	float platform_x = 150;
-	float platform_y = 220;
-	float platform_speed = 0.02;
+	float ballx=STARTBALLX,bally=STARTBALLY;
+	float ballSpeed = BALLSTARTSPEED;
+	float ballsx=ballSpeed*0.1,ballsy=0.9*ballSpeed;	//This is hardcoded and not correct. Will give different speed
+	float platform_x = PLATFORMSTARTX;
+	float platform_y = PLATFORMSTARTY;
+	float platform_speed = PLATFORMSTARTSPEED;
 
 	struct fb_copyarea rect;
 
@@ -241,6 +250,11 @@ void playLevel(uint16_t *screen,int *level,int fd)
 			platform_x += platform_sx*platform_speed;
 			int drawPlatform = (int)platform_x;
 
+			if(platform_x < 0)
+				platform_x = 0;
+			else if(platform_x + platformSizeX > SCREENWIDTH)
+				platform_x = SCREENWIDTH - platformSizeX;
+
 			clearRect(screen,oldPlatform,(int)platform_y,platformSizeX,platformSizeY);
 
 			drawImage(screen,(int)platform_x,(int)platform_y,platformSizeX,platformSizeY,platformData);
@@ -250,13 +264,11 @@ void playLevel(uint16_t *screen,int *level,int fd)
 			rect.width = platformSizeX;
 			rect.height = platformSizeY;
 			ioctl(fd,0x4680,&rect);
-
-
 		}
 
-		if(drawBallx + ballSizeX > 320)
+		if(drawBallx + ballSizeX > SCREENWIDTH)
 		{
-			drawBallx = 320 - ballSizeX;
+			drawBallx = SCREENWIDTH - ballSizeX;
 			ballsx = -ballsx;
 		}
 		else if(drawBallx < 0)
@@ -265,9 +277,9 @@ void playLevel(uint16_t *screen,int *level,int fd)
 			ballsx = -ballsx;
 		}
 
-		if(drawBally + ballSizeY > 240)
+		if(drawBally + ballSizeY > SCREENHEIGHT)
 		{
-			drawBally = 240 - ballSizeY;
+			drawBally = SCREENHEIGHT - ballSizeY;
 			ballsy = -ballsy;
 		}
 		else if(drawBally < 0)
@@ -338,7 +350,7 @@ void playLevel(uint16_t *screen,int *level,int fd)
 				int cornerY = -1;
 
 				//lower right
-				if(level[centerXIndex + 1 + ((centerYIndex + 1)*16)] != 0)
+				if(level[centerXIndex + 1 + ((centerYIndex + 1) * BOARDSQUARESWIDE)] != 0)
 				{
 					int tempCornerX = (centerXIndex + 1) * grayBlockSizeX;
 					int tempCornerY = (centerYIndex + 1) * grayBlockSizeY;
@@ -346,11 +358,11 @@ void playLevel(uint16_t *screen,int *level,int fd)
 					{
 						cornerX = tempCornerY;
 						cornerY = tempCornerY;
-						collisionIndex = centerXIndex + 1 + ((centerYIndex + 1)*16);
+						collisionIndex = centerXIndex + 1 + ((centerYIndex + 1) * BOARDSQUARESWIDE);
 					}
 				}
 				//lower left
-				if(level[centerXIndex - 1 + ((centerYIndex + 1)*16)] != 0)
+				if(level[centerXIndex - 1 + ((centerYIndex + 1) * BOARDSQUARESWIDE)] != 0)
 				{
 					int tempCornerX = (centerXIndex) * grayBlockSizeX;
 					int tempCornerY = (centerYIndex + 1) * grayBlockSizeY;
@@ -358,11 +370,11 @@ void playLevel(uint16_t *screen,int *level,int fd)
 					{
 						cornerX = tempCornerY;
 						cornerY = tempCornerY;
-						collisionIndex = centerXIndex - 1 + ((centerYIndex + 1)*16);
+						collisionIndex = centerXIndex - 1 + ((centerYIndex + 1) * BOARDSQUARESWIDE);
 					}
 				}
 				//upper right
-				if(level[centerXIndex + 1 + ((centerYIndex - 1)*16)] != 0)
+				if(level[centerXIndex + 1 + ((centerYIndex - 1) * BOARDSQUARESHIGH)] != 0)
 				{
 					int tempCornerX = (centerXIndex + 1) * grayBlockSizeX;
 					int tempCornerY = (centerYIndex) * grayBlockSizeY;
@@ -370,11 +382,11 @@ void playLevel(uint16_t *screen,int *level,int fd)
 					{
 						cornerX = tempCornerY;
 						cornerY = tempCornerY;
-						collisionIndex = centerXIndex + 1 + ((centerYIndex - 1)*16);
+						collisionIndex = centerXIndex + 1 + ((centerYIndex - 1) * BOARDSQUARESHIGH);
 					}
 				}
 				//upper left
-				if(level[centerXIndex - 1 + ((centerYIndex - 1)*16)] != 0)
+				if(level[centerXIndex - 1 + ((centerYIndex - 1) * BOARDSQUARESHIGH)] != 0)
 				{
 					int tempCornerX = (centerXIndex) * grayBlockSizeX;
 					int tempCornerY = (centerYIndex) * grayBlockSizeY;
@@ -382,7 +394,7 @@ void playLevel(uint16_t *screen,int *level,int fd)
 					{
 						cornerX = tempCornerY;
 						cornerY = tempCornerY;
-						collisionIndex = centerXIndex - 1 + ((centerYIndex - 1)*16);
+						collisionIndex = centerXIndex - 1 + ((centerYIndex - 1) * BOARDSQUARESHIGH);
 					}
 				}
 
@@ -400,13 +412,13 @@ void playLevel(uint16_t *screen,int *level,int fd)
 				}
 			}
 
-			if(collisionIndex >= 0 && level[collisionIndex] > 0)
+			if(collisionIndex >= 0 && level[collisionIndex] > 1)
 			{
 				level[collisionIndex] = 0;
 				removeCount--;
-				clearRect(screen,(collisionIndex % 16) * grayBlockSizeX,(collisionIndex / 16) * grayBlockSizeY,grayBlockSizeX,grayBlockSizeY);
-				rect.dx = (collisionIndex % 16) * grayBlockSizeX;
-				rect.dy = (collisionIndex / 16) * grayBlockSizeY;
+				clearRect(screen,(collisionIndex % BOARDSQUARESHIGH) * grayBlockSizeX,(collisionIndex / BOARDSQUARESHIGH) * grayBlockSizeY,grayBlockSizeX,grayBlockSizeY);
+				rect.dx = (collisionIndex % BOARDSQUARESHIGH) * grayBlockSizeX;
+				rect.dy = (collisionIndex / BOARDSQUARESHIGH) * grayBlockSizeY;
 				rect.width = grayBlockSizeX;
 				rect.height = grayBlockSizeY;
 				ioctl(fd,0x4680,&rect);
@@ -415,17 +427,17 @@ void playLevel(uint16_t *screen,int *level,int fd)
 					return;
 			}
 		}
-		else if(bally + ballSizeY >= platform_y)
+		else if(bally + ballSizeY >= platform_y && ballx + ballSizeX >= platform_x && ballx <= platform_x + platformSizeX)
 		{
 			float platformCenter = platform_x + platformSizeX / 2;
 			float platformDist = ballx - platformCenter;
-			float outSpeedx = (platformDist / platformSizeX)*0.056*2.0;
-			float outSpeedy = -sqrtf(1 - (outSpeedx * outSpeedx))*0.056*2.0;
+			float outSpeedxNormalized = (platformDist / platformSizeX);
+			float outSpeedyNormalized = -sqrtf(1 - (outSpeedxNormalized * outSpeedxNormalized));
 
 			bally = platform_y - ballSizeY;
 
-			ballsx = outSpeedx;
-			ballsy = outSpeedy;
+			ballsx = outSpeedxNormalized * ballSpeed;
+			ballsy = outSpeedyNormalized * ballSpeed;
 		}
 
 		//First quadrant
