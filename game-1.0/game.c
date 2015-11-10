@@ -209,269 +209,299 @@ int min(int a,int b)
 	return b;
 }
 
-void playLevel(uint16_t *screen,int *level,int fd)
+struct ImageDescriptor
+{
+	int width;
+	int height;
+};
+
+struct MovableGameObject
+{
+	float x;
+	float y;
+	float sx;
+	float sy;
+	int width;
+	int height;
+	struct ImageDescriptor image;
+};
+
+int applyCollision(struct MovableGameObject* ball,int *level)
+{
+	int collisionIndex = -1;
+	float ballCenterX = ball->x + (ballSizeX/2);
+	float ballCenterY = ball->y + (ballSizeY/2);
+
+	if(ball->x + ballSizeX > SCREENWIDTH)
+	{
+		ball->x = SCREENWIDTH - ballSizeX;
+		ball->sx = -ball->sx;
+	}
+	else if(ball->x < 0)
+	{
+		ball->x = 0;
+		ball->sx = -ball->sx;
+	}
+
+	if(ball->y + ballSizeY > SCREENHEIGHT)
+	{
+		ball->y = SCREENHEIGHT - ballSizeY;
+		ball->sy = -ball->sy;
+	}
+	else if(ball->y < 0)
+	{
+		ball->y = 0;
+		ball->sy = -ball->sy;
+	}
+
+	if(ball->y < 120)
+	{
+		int leftIndex,rightIndex,downIndex,upIndex;
+
+		leftIndex = ((int)ball->x)/grayBlockSizeX;
+		rightIndex = ((int)ball->x + ballSizeX)/grayBlockSizeX;
+		upIndex = ((int)ball->y)/grayBlockSizeY;
+		downIndex = ((int)ball->y + ballSizeY)/grayBlockSizeY;
+		int centerXIndex = ((int)ballCenterX)/grayBlockSizeX;
+		int centerYIndex = ((int)ballCenterY)/grayBlockSizeY;
+
+		int flatCollision = 0;
+		int xDir = 0;
+		int yDir = 0;
+
+		if(ball->sx < 0)
+			xDir = -1;
+		else
+			xDir = 1;
+		if(ball->sy < 0)
+			yDir = -1;
+		else
+			yDir = 1;
+
+		//a flat collision is a collision not involving the corners of the square.
+		//Here we check if the index in the right direction is a block
+		if(level[centerXIndex + xDir + (centerYIndex * 16)] != 0)
+			flatCollision = 1;
+		else if(level[centerXIndex + ((centerYIndex + yDir) * 16)] != 0)
+			flatCollision = 1;
+
+		if(flatCollision)
+		{
+			//Check if it is a flat collision to the right
+			if(level[rightIndex + (centerYIndex * 16)] != 0)
+			{
+				ball->sx = -ball->sx;
+				ball->x = ballSizeX + (rightIndex * grayBlockSizeX);
+				collisionIndex = rightIndex + (centerYIndex * 16);
+			}
+			else if(level[leftIndex + (centerYIndex * 16)] != 0)
+			{
+				ball->sx = -ball->sx;
+				ball->x = grayBlockSizeX + (leftIndex * grayBlockSizeX);
+				collisionIndex = leftIndex + (centerYIndex * 16);
+			}
+			if(level[centerXIndex + (upIndex * 16)] != 0)
+			{
+				ball->sy = -ball->sy;
+				ball->y = grayBlockSizeY + (upIndex * grayBlockSizeY);
+				collisionIndex = centerXIndex + (upIndex * 16);
+			}
+			else if(level[centerXIndex + (downIndex * 16)] != 0)
+			{
+				ball->sy = -ball->sy;
+				ball->y = ballSizeY + (downIndex * grayBlockSizeY);
+				collisionIndex = centerXIndex + (downIndex * 16);
+			}
+		}
+		/*else
+		{
+			int cornerX = -1;
+			int cornerY = -1;
+
+			//lower right
+			if(level[centerXIndex + 1 + ((centerYIndex + 1) * BOARDSQUARESWIDE)] != 0)
+			{
+				int tempCornerX = (centerXIndex + 1) * grayBlockSizeX;
+				int tempCornerY = (centerYIndex + 1) * grayBlockSizeY;
+				if(tempCornerX > ball->x && tempCornerX < ball->x + ballSizeX && tempCornerY > ball->y && tempCornerY < bally + ballSizeY)
+				{
+					cornerX = tempCornerY;
+					cornerY = tempCornerY;
+					collisionIndex = centerXIndex + 1 + ((centerYIndex + 1) * BOARDSQUARESWIDE);
+				}
+			}
+			//lower left
+			if(level[centerXIndex - 1 + ((centerYIndex + 1) * BOARDSQUARESWIDE)] != 0)
+			{
+				int tempCornerX = (centerXIndex) * grayBlockSizeX;
+				int tempCornerY = (centerYIndex + 1) * grayBlockSizeY;
+				if(tempCornerX > ballx && tempCornerX < ballx + ballSizeX && tempCornerY > bally && tempCornerY < bally + ballSizeY)
+				{
+					cornerX = tempCornerY;
+					cornerY = tempCornerY;
+					collisionIndex = centerXIndex - 1 + ((centerYIndex + 1) * BOARDSQUARESWIDE);
+				}
+			}
+			//upper right
+			if(level[centerXIndex + 1 + ((centerYIndex - 1) * BOARDSQUARESHIGH)] != 0)
+			{
+				int tempCornerX = (centerXIndex + 1) * grayBlockSizeX;
+				int tempCornerY = (centerYIndex) * grayBlockSizeY;
+				if(tempCornerX > ballx && tempCornerX < ballx + ballSizeX && tempCornerY > bally && tempCornerY < bally + ballSizeY)
+				{
+					cornerX = tempCornerY;
+					cornerY = tempCornerY;
+					collisionIndex = centerXIndex + 1 + ((centerYIndex - 1) * BOARDSQUARESHIGH);
+				}
+			}
+			//upper left
+			if(level[centerXIndex - 1 + ((centerYIndex - 1) * BOARDSQUARESHIGH)] != 0)
+			{
+				int tempCornerX = (centerXIndex) * grayBlockSizeX;
+				int tempCornerY = (centerYIndex) * grayBlockSizeY;
+				if(tempCornerX > ballx && tempCornerX < ballx + ballSizeX && tempCornerY > bally && tempCornerY < bally + ballSizeY)
+				{
+					cornerX = tempCornerY;
+					cornerY = tempCornerY;
+					collisionIndex = centerXIndex - 1 + ((centerYIndex - 1) * BOARDSQUARESHIGH);
+				}
+			}
+
+			if(cornerX > 0 && cornerY > 0)
+			{
+				float x = ballCenterX - cornerX;
+				float y = ballCenterY - cornerY;
+				float c = -2 * (ball.sx * x + ball.dy * y) / (x * x + y * y);
+				ball.sx = ball.sx + (c * x);
+				ball.sy = ball.sy + (c * y);
+
+				float centerDistanceSquared = ((cornerX - ballCenterX)*(cornerX - ballCenterX)) + ((cornerY - ballCenterY)*(cornerY - ballCenterY));
+				float tempValue = ((ballsx * (ballCenterX - cornerX)) + (ballsy * (ballCenterY - cornerY))) / centerDistanceSquared;
+				ballsx = ballsx - (2 * tempValue * (ballCenterX - cornerX));
+				ballsy = ballsy - (2 * tempValue * (ballCenterY - cornerY));
+
+				//ballx = oldBallx;
+				//bally = oldBally;
+
+				//level[collisionIndex] = 0;
+			}
+		}*/
+	}
+	return collisionIndex;
+}
+
+int playLevel(uint16_t *screen,int *level,int fd)
 {
 	int removeCount = countRemovableBlocks(level);
-	float ballx=STARTBALLX,bally=STARTBALLY;
-	float ballSpeed = BALLSTARTSPEED;
-	float ballsx=ballSpeed*0.1,ballsy=0.9*ballSpeed;	//This is hardcoded and not correct. Will give different speed
-	float platform_x = PLATFORMSTARTX;
-	float platform_y = PLATFORMSTARTY;
-	float platform_speed = PLATFORMSTARTSPEED;
+	float ballSpeed = BALLSTARTSPEED;		//The speed the ball is travelling in
+	float platformSpeed = PLATFORMSTARTSPEED;//the horizontal speed of the platform
+	float deltaTime = 1;
+	struct MovableGameObject ball;			//The ball
+	struct MovableGameObject platform;		//The platform
+
+	ball.x = STARTBALLX;
+	ball.y = STARTBALLY;
+	ball.sx = ballSpeed * 0.1; //This is hardcoded and not correct. Will give different speed
+	ball.sy = ballSpeed * 0.9; //This is hardcoded and not correct. Will give different speed
+
+	platform.x = PLATFORMSTARTX;
+	platform.y = PLATFORMSTARTY;
+	platform.sx = 0;
+	platform.sy = 0;
 
 	struct fb_copyarea rect;
 
-	drawImage(screen,(int)platform_x,(int)platform_y,platformSizeX,platformSizeY,platformData);
+	drawImage(screen,(int)platform.x,(int)platform.y,platformSizeX,platformSizeY,platformData);
 
-	rect.dx = (int)platform_x;
-	rect.dy = (int)platform_y;
+	rect.dx = (int)platform.x;
+	rect.dy = (int)platform.y;
 	rect.width = platformSizeX;
 	rect.height = platformSizeY;
 	ioctl(fd,0x4680,&rect);
 
 	while(removeCount>0)
 	{
-		int drawBallx,drawBally;
+		platform.sx = platform_sx * platformSpeed * deltaTime;
+		platform.x += platform.sx;
 
-		int oldBallx = (int)ballx;
-		int oldBally = (int)bally;
+		if(platform.x < 0)
+			platform.x = 0;
+		else if(platform.x + platformSizeX > SCREENWIDTH)
+			platform.x = SCREENWIDTH - platformSizeX;
 
-		clearRect(screen,oldBallx,oldBally,ballSizeX,ballSizeY);
+		float oldBallx = ball.x;
+		float oldBally = ball.y;
 
-		ballx+=ballsx;
-		bally+=ballsy;
+		ball.x += ball.sx * deltaTime;
+		ball.y += ball.sy * deltaTime;
 
-		drawBallx = (int)ballx;
-		drawBally = (int)bally;
+		int collisionIndex = applyCollision(&ball,level);
 
-		if(platform_sx < -0.0001 || platform_sx > 0.0001)
+		//if we are colliding with platform
+		if(ball.y + ballSizeY >= platform.y && 		//we are below platform
+			ball.x + ballSizeX > platform.x && 			//Left side of ball is on platform
+			ball.x < platform.x + platformSizeX)		//right side of ball is on platform
 		{
-			int oldPlatform = (int)platform_x;
-			platform_x += platform_sx*platform_speed;
-			int drawPlatform = (int)platform_x;
+			ball.y = platform.y - ballSizeY;
+			ball.sx = ((ball.x - (ballSizeX / 2)) - (platform.x - (platformSizeX / 2))) / (platformSizeX*2);
+			ball.sy = -sqrtf(1 - (ball.sx * ball.sx));
+			ball.sx *= ballSpeed;
+			ball.sy *= ballSpeed;
+		}
 
-			if(platform_x < 0)
-				platform_x = 0;
-			else if(platform_x + platformSizeX > SCREENWIDTH)
-				platform_x = SCREENWIDTH - platformSizeX;
+		//now repaint what we need to repaint
+		if(collisionIndex >= 0 && level[collisionIndex] > 1)
+		{
+			level[collisionIndex] = 0;
+			removeCount--;
 
+			//there are no more blocks to remove, and the level is done
+			if(removeCount <= 0)
+				return 0;
+
+			//Set the rect we want to update to clear the square
+			rect.dx = (collisionIndex % BOARDSQUARESHIGH) * grayBlockSizeX;
+			rect.dy = (collisionIndex / BOARDSQUARESHIGH) * grayBlockSizeY;
+			rect.width = grayBlockSizeX;
+			rect.height = grayBlockSizeY;
+
+			//clear the block
+			clearRect(screen,rect.dx,rect.dy,rect.width,rect.height);
+			
+			//update the screen at this position
+			ioctl(fd,0x4680,&rect);
+		}
+		
+		int drawBallx = (int)ball.x;
+		int drawBally = (int)ball.y;
+
+		//draw the ball
+		drawImage(screen,drawBallx,drawBally,ballSizeX,ballSizeY,ballData);
+
+		rect.dx = min(drawBallx,oldBallx);	//the rect should include both the new and the old ball that is removed
+		rect.dy = min(drawBally,oldBally);
+		rect.width = ballSizeX + 1;  //TODO This should plus the absolute value of the speed
+		rect.height = ballSizeY + 1;
+
+		//Update the screen at the ball
+		ioctl(fd,0x4680,&rect);
+
+		if(platform.sx < -0.0001 || platform.sx > 0.0001)
+		{
+			//Draw the platform
+			drawImage(screen,(int)platform.x,(int)platform.y,platformSizeX,platformSizeY,platformData);
+			//Update the screen at the position of the platform
 			if(platform_sx < 0)
-				clearRect(screen,oldPlatform + platformSizeX,(int)platform_y,absolute(oldPlatform - drawPlatform),platformSizeY);
+				rect.dx = (int)platform.x;
 			else
-				clearRect(screen,oldPlatform,(int)platform_y,absolute(oldPlatform - drawPlatform),platformSizeY);
-
-			drawImage(screen,(int)platform_x,(int)platform_y,platformSizeX,platformSizeY,platformData);
-
-			rect.dx = min(oldPlatform,drawPlatform);
-			rect.dy = (int)platform_y;
-			rect.width = platformSizeX + abs(oldPlatform - drawPlatform);
+				rect.dx = (int)(platform.x - platform.sx);
+			rect.dy = (int)platform.y;
+			rect.width = platformSizeX + (int)absolute(platform.sx) + 1;
 			rect.height = platformSizeY;
 			ioctl(fd,0x4680,&rect);
 		}
-
-		if(drawBallx + ballSizeX > SCREENWIDTH)
-		{
-			drawBallx = SCREENWIDTH - ballSizeX;
-			ballsx = -ballsx;
-		}
-		else if(drawBallx < 0)
-		{
-			drawBallx = 0;
-			ballsx = -ballsx;
-		}
-
-		if(drawBally + ballSizeY > SCREENHEIGHT)
-		{
-			drawBally = SCREENHEIGHT - ballSizeY;
-			ballsy = -ballsy;
-		}
-		else if(drawBally < 0)
-		{
-			drawBally = 0;
-			ballsy = -ballsy;
-		}
-
-		float ballCenterX = ballx + (ballSizeX/2);
-		float ballCenterY = bally + (ballSizeY/2);
-
-		if(bally < 120)
-		{
-			int leftIndex,rightIndex,downIndex,upIndex;
-
-			leftIndex = ((int)ballx)/grayBlockSizeX;
-			rightIndex = ((int)ballx + ballSizeX)/grayBlockSizeX;
-			upIndex = ((int)bally)/grayBlockSizeY;
-			downIndex = ((int)bally + ballSizeY)/grayBlockSizeY;
-			int centerXIndex = ((int)ballCenterX)/grayBlockSizeX;
-			int centerYIndex = ((int)ballCenterY)/grayBlockSizeY;
-
-			int collisionIndex = -1;
-			int flatCollision = 0;
-			int xDir = 0;
-			int yDir = 0;
-
-			if(ballsx < 0)
-				xDir = -1;
-			else
-				xDir = 1;
-			if(ballsy < 0)
-				yDir = -1;
-			else
-				yDir = 1;
-
-			if(level[centerXIndex + xDir + (centerYIndex * 16)] != 0)
-				flatCollision = 1;
-			else if(level[centerXIndex + ((centerYIndex + yDir) * 16)] != 0)
-				flatCollision = 1;
-
-			if(flatCollision)
-			{
-				if(level[rightIndex + (centerYIndex * 16)] != 0)
-				{
-					ballsx = -ballsx;
-					collisionIndex = rightIndex + (centerYIndex * 16);
-				}
-				else if(level[leftIndex + (centerYIndex * 16)] != 0)
-				{
-					ballsx = -ballsx;
-					collisionIndex = leftIndex + (centerYIndex * 16);
-				}
-				if(level[centerXIndex + (upIndex * 16)] != 0)
-				{
-					ballsy = -ballsy;
-					collisionIndex = centerXIndex + (upIndex * 16);
-				}
-				else if(level[centerXIndex + (downIndex * 16)] != 0)
-				{
-					ballsy = -ballsy;
-					collisionIndex = centerXIndex + (downIndex * 16);
-				}
-			}
-			else
-			{
-				int cornerX = -1;
-				int cornerY = -1;
-
-				//lower right
-				if(level[centerXIndex + 1 + ((centerYIndex + 1) * BOARDSQUARESWIDE)] != 0)
-				{
-					int tempCornerX = (centerXIndex + 1) * grayBlockSizeX;
-					int tempCornerY = (centerYIndex + 1) * grayBlockSizeY;
-					if(tempCornerX > ballx && tempCornerX < ballx + ballSizeX && tempCornerY > bally && tempCornerY < bally + ballSizeY)
-					{
-						cornerX = tempCornerY;
-						cornerY = tempCornerY;
-						collisionIndex = centerXIndex + 1 + ((centerYIndex + 1) * BOARDSQUARESWIDE);
-					}
-				}
-				//lower left
-				if(level[centerXIndex - 1 + ((centerYIndex + 1) * BOARDSQUARESWIDE)] != 0)
-				{
-					int tempCornerX = (centerXIndex) * grayBlockSizeX;
-					int tempCornerY = (centerYIndex + 1) * grayBlockSizeY;
-					if(tempCornerX > ballx && tempCornerX < ballx + ballSizeX && tempCornerY > bally && tempCornerY < bally + ballSizeY)
-					{
-						cornerX = tempCornerY;
-						cornerY = tempCornerY;
-						collisionIndex = centerXIndex - 1 + ((centerYIndex + 1) * BOARDSQUARESWIDE);
-					}
-				}
-				//upper right
-				if(level[centerXIndex + 1 + ((centerYIndex - 1) * BOARDSQUARESHIGH)] != 0)
-				{
-					int tempCornerX = (centerXIndex + 1) * grayBlockSizeX;
-					int tempCornerY = (centerYIndex) * grayBlockSizeY;
-					if(tempCornerX > ballx && tempCornerX < ballx + ballSizeX && tempCornerY > bally && tempCornerY < bally + ballSizeY)
-					{
-						cornerX = tempCornerY;
-						cornerY = tempCornerY;
-						collisionIndex = centerXIndex + 1 + ((centerYIndex - 1) * BOARDSQUARESHIGH);
-					}
-				}
-				//upper left
-				if(level[centerXIndex - 1 + ((centerYIndex - 1) * BOARDSQUARESHIGH)] != 0)
-				{
-					int tempCornerX = (centerXIndex) * grayBlockSizeX;
-					int tempCornerY = (centerYIndex) * grayBlockSizeY;
-					if(tempCornerX > ballx && tempCornerX < ballx + ballSizeX && tempCornerY > bally && tempCornerY < bally + ballSizeY)
-					{
-						cornerX = tempCornerY;
-						cornerY = tempCornerY;
-						collisionIndex = centerXIndex - 1 + ((centerYIndex - 1) * BOARDSQUARESHIGH);
-					}
-				}
-
-				if(cornerX > 0 && cornerY > 0)
-				{
-					float centerDistanceSquared = ((cornerX - ballCenterX)*(cornerX - ballCenterX)) + ((cornerY - ballCenterY)*(cornerY - ballCenterY));
-					float tempValue = ((ballsx * (ballCenterX - cornerX)) + (ballsy * (ballCenterY - cornerY))) / centerDistanceSquared;
-					ballsx = ballsx - (2 * tempValue * (ballCenterX - cornerX));
-					ballsy = ballsy - (2 * tempValue * (ballCenterY - cornerY));
-
-					//ballx = oldBallx;
-					//bally = oldBally;
-
-					//level[collisionIndex] = 0;
-				}
-			}
-
-			if(collisionIndex >= 0 && level[collisionIndex] > 1)
-			{
-				level[collisionIndex] = 0;
-				removeCount--;
-				clearRect(screen,(collisionIndex % BOARDSQUARESHIGH) * grayBlockSizeX,(collisionIndex / BOARDSQUARESHIGH) * grayBlockSizeY,grayBlockSizeX,grayBlockSizeY);
-				rect.dx = (collisionIndex % BOARDSQUARESHIGH) * grayBlockSizeX;
-				rect.dy = (collisionIndex / BOARDSQUARESHIGH) * grayBlockSizeY;
-				rect.width = grayBlockSizeX;
-				rect.height = grayBlockSizeY;
-				ioctl(fd,0x4680,&rect);
-
-				if(removeCount <= 0)
-					return;
-			}
-		}
-		else if(bally + ballSizeY >= platform_y && ballx + ballSizeX >= platform_x && ballx <= platform_x + platformSizeX)
-		{
-			float platformCenter = platform_x + platformSizeX / 2;
-			float platformDist = ballx - platformCenter;
-			float outSpeedxNormalized = (platformDist / platformSizeX);
-			float outSpeedyNormalized = -sqrtf(1 - (outSpeedxNormalized * outSpeedxNormalized));
-
-			bally = platform_y - ballSizeY;
-
-			ballsx = outSpeedxNormalized * ballSpeed;
-			ballsy = outSpeedyNormalized * ballSpeed;
-		}
-
-		//First quadrant
-		/*if(ballsy < 0 && ballsx < 0)
-		{
-			//Left of right side of block
-			if(leftIndex != centerXIndex)
-			{
-				//Underneath block which is a corner
-				if(upIndex != centerYIndex)
-				{
-					if(level[leftIndex + (upIndex*16)] != 0 && level[centerXIndex + (upIndex*16)] != 0)
-					{
-						ballsy = -ballsy;
-					}
-				}
-			}
-		}
-		else if(ballsy < 0 && ballsx >= 0)
-		{
-
-		}*/
-
-		drawImage(screen,drawBallx,drawBally,ballSizeX,ballSizeY,ballData);
-
-		rect.dx = min(drawBallx,oldBallx);
-		rect.dy = min(drawBally,oldBally);
-		rect.width = ballSizeX + ((int)ballsx + 1);
-		rect.height = ballSizeY + ((int)ballsy + 1);
-		ioctl(fd,0x4680,&rect);
 	}
+	return 0;
 }
 
 int main(int argc, char *argv[])
