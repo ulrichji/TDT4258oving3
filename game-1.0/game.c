@@ -291,7 +291,7 @@ int applyCollision(struct MovableGameObject* ball,int *level)
 			if(level[rightIndex + (centerYIndex * 16)] != 0)
 			{
 				ball->sx = -ball->sx;
-				ball->x = ballSizeX + (rightIndex * grayBlockSizeX);
+				ball->x = (rightIndex * grayBlockSizeX) - ballSizeX;
 				collisionIndex = rightIndex + (centerYIndex * 16);
 			}
 			else if(level[leftIndex + (centerYIndex * 16)] != 0)
@@ -309,7 +309,7 @@ int applyCollision(struct MovableGameObject* ball,int *level)
 			else if(level[centerXIndex + (downIndex * 16)] != 0)
 			{
 				ball->sy = -ball->sy;
-				ball->y = ballSizeY + (downIndex * grayBlockSizeY);
+				ball->y = (downIndex * grayBlockSizeY) - ballSizeY;
 				collisionIndex = centerXIndex + (downIndex * 16);
 			}
 		}
