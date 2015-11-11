@@ -9,6 +9,7 @@
 #include <signal.h>
 #include <sys/types.h>
 #include <errno.h>
+#include <time.h>
 
 #include "boards.h"
 #include "images/grayBlock.h"
@@ -22,10 +23,12 @@
 #define STARTBALLY 180
 #define SCREENWIDTH 320
 #define SCREENHEIGHT 240
-#define BALLSTARTSPEED 0.5
+#define BALLSTARTSPEED 30	//in pixels per second
 #define PLATFORMSTARTX (SCREENWIDTH / 2) - 20 	//Platform size should be constant
 #define PLATFORMSTARTY 220
-#define PLATFORMSTARTSPEED 0.2
+#define PLATFORMSTARTSPEED 15 //in pixels per second
+#define FPS 30
+#define SLEEPTIME 1000000 / FPS 
 
 #define SW1 0x1
 #define SW3 0x4
@@ -207,6 +210,13 @@ int min(int a,int b)
 	if(a<b)
 		return a;
 	return b;
+}
+
+long getTime()
+{
+	struct timeval tv;
+	gettimeofday(&tv,NULL);
+	return (1000000 * tv.tv_sec) + tv.tv_usec;
 }
 
 struct ImageDescriptor
@@ -419,8 +429,16 @@ int playLevel(uint16_t *screen,int *level,int fd)
 	rect.height = platformSizeY;
 	ioctl(fd,0x4680,&rect);
 
+	long lastTime = 0;
+	long startTime = getTime();
+
 	while(removeCount>0)
 	{
+		lastTime = startTime;
+		startTime = getTime();
+
+		deltaTime = (float)(startTime - lastTime) / 1000000.0;
+
 		platform.sx = platform_sx * platformSpeed * deltaTime;
 		platform.x += platform.sx;
 
@@ -500,6 +518,12 @@ int playLevel(uint16_t *screen,int *level,int fd)
 			rect.height = platformSizeY;
 			ioctl(fd,0x4680,&rect);
 		}
+
+		long endTime = getTime();
+
+		long sleepTime = SLEEPTIME - (endTime - startTime);
+		if(sleepTime > 0)
+			usleep((int)sleepTime);
 	}
 	return 0;
 }
