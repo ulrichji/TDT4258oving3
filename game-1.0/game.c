@@ -17,12 +17,12 @@
 #include "images/ball.h"
 #include "images/platform.h"
 
+#include "screenutil.h"
+
 #define RGB(r,g,b) ((r<<11) | (g<<5) | (b<<0))
 
 #define STARTBALLX 160
 #define STARTBALLY 180
-#define SCREENWIDTH 320
-#define SCREENHEIGHT 240
 #define BALLSTARTSPEED 30	//in pixels per second
 #define PLATFORMSTARTX (SCREENWIDTH / 2) - 20 	//Platform size should be constant
 #define PLATFORMSTARTY 220
@@ -103,42 +103,6 @@ float sqrtf(float x)
         guess = ((x/guess) + guess) / 2.0;
 
     return guess;
-}
-
-void drawImage(uint16_t *screen,int x,int y,int dx,int dy,const uint16_t *image)
-{
-	int i,u;
-	int yCount=0,xCount=0;
-	for(i=y;i<y+dy;i++)
-	{
-		for(u=x;u<x+dx;u++)
-		{
-			screen[u+(i*SCREENWIDTH)] = image[xCount+(yCount*dx)];
-			xCount++;
-		}
-		xCount = 0;
-		yCount ++;
-	}
-}
-
-void drawRect(uint16_t *screen,int x,int y,int dx,int dy,uint16_t color)
-{
-	int i,u;
-	for(i=y;i<y+dy;i++)
-	{
-		for(u=x;u<x+dx;u++)
-			screen[u+(i*SCREENWIDTH)] = color;
-	}
-}
-
-void clearRect(uint16_t *screen,int x,int y,int dx,int dy)
-{
-	int i,u;
-	for(i=y;i<y+dy;i++)
-	{
-		for(u=x;u<x+dx;u++)
-			screen[u+(i*SCREENWIDTH)] = 0;
-	}
 }
 
 int* loadMap(uint16_t *screen,int level)
@@ -242,9 +206,9 @@ int applyCollision(struct MovableGameObject* ball,int *level)
 	float ballCenterX = ball->x + (ballSizeX/2);
 	float ballCenterY = ball->y + (ballSizeY/2);
 
-	if(ball->x + ballSizeX > SCREENWIDTH)
+	if(ball->x + ballSizeX + 1 > SCREENWIDTH)
 	{
-		ball->x = SCREENWIDTH - ballSizeX;
+		ball->x = SCREENWIDTH - ballSizeX - 1;
 		ball->sx = -ball->sx;
 	}
 	else if(ball->x < 0)
@@ -253,9 +217,9 @@ int applyCollision(struct MovableGameObject* ball,int *level)
 		ball->sx = -ball->sx;
 	}
 
-	if(ball->y + ballSizeY > SCREENHEIGHT)
+	if(ball->y + ballSizeY + 1 > SCREENHEIGHT)
 	{
-		ball->y = SCREENHEIGHT - ballSizeY;
+		ball->y = SCREENHEIGHT - ballSizeY - 1;
 		ball->sy = -ball->sy;
 	}
 	else if(ball->y < 0)
@@ -323,7 +287,7 @@ int applyCollision(struct MovableGameObject* ball,int *level)
 				collisionIndex = centerXIndex + (downIndex * 16);
 			}
 		}
-		/*else
+		else
 		{
 			int cornerX = -1;
 			int cornerY = -1;
@@ -333,7 +297,7 @@ int applyCollision(struct MovableGameObject* ball,int *level)
 			{
 				int tempCornerX = (centerXIndex + 1) * grayBlockSizeX;
 				int tempCornerY = (centerYIndex + 1) * grayBlockSizeY;
-				if(tempCornerX > ball->x && tempCornerX < ball->x + ballSizeX && tempCornerY > ball->y && tempCornerY < bally + ballSizeY)
+				if(tempCornerX > ball->x && tempCornerX < ball->x + ballSizeX && tempCornerY > ball->y && tempCornerY < ball->y + ballSizeY)
 				{
 					cornerX = tempCornerY;
 					cornerY = tempCornerY;
@@ -345,7 +309,7 @@ int applyCollision(struct MovableGameObject* ball,int *level)
 			{
 				int tempCornerX = (centerXIndex) * grayBlockSizeX;
 				int tempCornerY = (centerYIndex + 1) * grayBlockSizeY;
-				if(tempCornerX > ballx && tempCornerX < ballx + ballSizeX && tempCornerY > bally && tempCornerY < bally + ballSizeY)
+				if(tempCornerX > ball->x && tempCornerX < ball->x + ballSizeX && tempCornerY > ball->y && tempCornerY < ball->y + ballSizeY)
 				{
 					cornerX = tempCornerY;
 					cornerY = tempCornerY;
@@ -357,7 +321,7 @@ int applyCollision(struct MovableGameObject* ball,int *level)
 			{
 				int tempCornerX = (centerXIndex + 1) * grayBlockSizeX;
 				int tempCornerY = (centerYIndex) * grayBlockSizeY;
-				if(tempCornerX > ballx && tempCornerX < ballx + ballSizeX && tempCornerY > bally && tempCornerY < bally + ballSizeY)
+				if(tempCornerX > ball->x && tempCornerX < ball->x + ballSizeX && tempCornerY > ball->y && tempCornerY < ball->y + ballSizeY)
 				{
 					cornerX = tempCornerY;
 					cornerY = tempCornerY;
@@ -369,7 +333,7 @@ int applyCollision(struct MovableGameObject* ball,int *level)
 			{
 				int tempCornerX = (centerXIndex) * grayBlockSizeX;
 				int tempCornerY = (centerYIndex) * grayBlockSizeY;
-				if(tempCornerX > ballx && tempCornerX < ballx + ballSizeX && tempCornerY > bally && tempCornerY < bally + ballSizeY)
+				if(tempCornerX > ball->x && tempCornerX < ball->x + ballSizeX && tempCornerY > ball->y && tempCornerY < ball->y + ballSizeY)
 				{
 					cornerX = tempCornerY;
 					cornerY = tempCornerY;
@@ -381,21 +345,21 @@ int applyCollision(struct MovableGameObject* ball,int *level)
 			{
 				float x = ballCenterX - cornerX;
 				float y = ballCenterY - cornerY;
-				float c = -2 * (ball.sx * x + ball.dy * y) / (x * x + y * y);
-				ball.sx = ball.sx + (c * x);
-				ball.sy = ball.sy + (c * y);
+				float c = -2 * (ball->sx * x + ball->sy * y) / (x * x + y * y);
+				ball->sx = ball->sx + (c * x);
+				ball->sy = ball->sy + (c * y);
 
-				float centerDistanceSquared = ((cornerX - ballCenterX)*(cornerX - ballCenterX)) + ((cornerY - ballCenterY)*(cornerY - ballCenterY));
+				/*float centerDistanceSquared = ((cornerX - ballCenterX)*(cornerX - ballCenterX)) + ((cornerY - ballCenterY)*(cornerY - ballCenterY));
 				float tempValue = ((ballsx * (ballCenterX - cornerX)) + (ballsy * (ballCenterY - cornerY))) / centerDistanceSquared;
 				ballsx = ballsx - (2 * tempValue * (ballCenterX - cornerX));
-				ballsy = ballsy - (2 * tempValue * (ballCenterY - cornerY));
+				ballsy = ballsy - (2 * tempValue * (ballCenterY - cornerY));*/
 
 				//ballx = oldBallx;
 				//bally = oldBally;
 
 				//level[collisionIndex] = 0;
 			}
-		}*/
+		}
 	}
 	return collisionIndex;
 }
@@ -461,7 +425,7 @@ int playLevel(uint16_t *screen,int *level,int fd)
 			ball.x < platform.x + platformSizeX)		//right side of ball is on platform
 		{
 			ball.y = platform.y - ballSizeY;
-			ball.sx = ((ball.x - (ballSizeX / 2)) - (platform.x - (platformSizeX / 2))) / (platformSizeX*2);
+			ball.sx = ((ball.x + (ballSizeX / 2)) - (platform.x + (platformSizeX / 2))) / ((float)platformSizeX*2);
 			ball.sy = -sqrtf(1 - (ball.sx * ball.sx));
 			ball.sx *= ballSpeed;
 			ball.sy *= ballSpeed;
@@ -493,6 +457,8 @@ int playLevel(uint16_t *screen,int *level,int fd)
 		int drawBallx = (int)ball.x;
 		int drawBally = (int)ball.y;
 
+		//Clear the ball
+		clearRect(screen,(int)oldBallx,(int)oldBally,ballSizeX,ballSizeY);
 		//draw the ball
 		drawImage(screen,drawBallx,drawBally,ballSizeX,ballSizeY,ballData);
 
@@ -506,6 +472,11 @@ int playLevel(uint16_t *screen,int *level,int fd)
 
 		if(platform.sx < -0.0001 || platform.sx > 0.0001)
 		{
+			if(platform.sx < 0)
+				clearRect(screen,(int)(platform.x + platform.sx),(int)platform.y,(int)(absolute(platform.sx)) + 1,platformSizeY);
+			else
+				clearRect(screen,(int)(platform.x + platformSizeX),(int)platform.y,(int)(absolute(platform.sx)) + 1,platformSizeY);
+
 			//Draw the platform
 			drawImage(screen,(int)platform.x,(int)platform.y,platformSizeX,platformSizeY,platformData);
 			//Update the screen at the position of the platform
@@ -514,10 +485,12 @@ int playLevel(uint16_t *screen,int *level,int fd)
 			else
 				rect.dx = (int)(platform.x - platform.sx);
 			rect.dy = (int)platform.y;
-			rect.width = platformSizeX + (int)absolute(platform.sx) + 1;
-			rect.height = platformSizeY;
+			rect.width = platformSizeX + (int)absolute(platform.sx) + 1+3;
+			rect.height = platformSizeY + 3;
 			ioctl(fd,0x4680,&rect);
 		}
+
+		refreshScreen(fd);
 
 		long endTime = getTime();
 
