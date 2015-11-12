@@ -23,11 +23,11 @@
 
 #define STARTBALLX 160
 #define STARTBALLY 180
-#define BALLSTARTSPEED 30	//in pixels per second
+#define BALLSTARTSPEED 100	//in pixels per second
 #define PLATFORMSTARTX (SCREENWIDTH / 2) - 20 	//Platform size should be constant
 #define PLATFORMSTARTY 220
-#define PLATFORMSTARTSPEED 15 //in pixels per second
-#define FPS 30
+#define PLATFORMSTARTSPEED 50 //in pixels per second
+#define FPS 60
 #define SLEEPTIME 1000000 / FPS 
 
 #define SW1 0x1
@@ -41,7 +41,6 @@ struct Image
 	int width;
 	uint16_t* imageData;
 };
-
 
 int driver_descriptor;
 int mem;
@@ -64,7 +63,7 @@ void gamepad_handler(int signum) {
 			platform_sx = 1;
 		else
 			platform_sx = 0;
-		printf("Read %u from device file\n", btn_id);
+		//printf("Read %u from device file\n", btn_id);
 	}
 }
 
@@ -172,6 +171,13 @@ int countRemovableBlocks(int *level)
 int min(int a,int b)
 {
 	if(a<b)
+		return a;
+	return b;
+}
+
+int max(int a,int b)
+{
+	if(a>b)
 		return a;
 	return b;
 }
@@ -364,6 +370,52 @@ int applyCollision(struct MovableGameObject* ball,int *level)
 	return collisionIndex;
 }
 
+void refreshRect(int x,int y,int width,int height,int fd)
+{
+	struct fb_copyarea rect;
+
+	rect.dx = x;
+	rect.dy = y;
+	rect.width = width;
+	rect.height = width;
+
+	//We need to check that we are within bouds of screen
+	if(x < 0)
+	{
+		rect.dx = 0;	//set position to 0
+		rect.width = rect.width + x;	//decrease width by ammount of negative x
+		//if the width are negative, the whole rect is outside board and no refresh is needed
+		if(rect.width <= 0)
+			return;
+
+	}
+	//Outside the bounds on other side of screen
+	else if(x + width > SCREENWIDTH)
+	{
+		rect.width = SCREENWIDTH - x;
+		//if the width is negative, then we are outside the bounds of the screen
+		if(rect.width <= 0)
+			return;
+	}
+
+	if(y < 0)
+	{
+		rect.dy = 0;	//Set position to 0
+		rect.height = rect.height + y;	//subtract the height by the ammount of rect that is outside of the bounds
+		if(rect.height <= 0)
+			return;
+	}
+	else if(y + height > SCREENHEIGHT)
+	{
+		//set the height to ammount of square that is outside of the screen bounds
+		rect.height = SCREENHEIGHT - y;
+		if(rect.height < 0)
+			return;
+	}
+
+	ioctl(fd,0x4680,&rect);
+}
+
 int playLevel(uint16_t *screen,int *level,int fd)
 {
 	int removeCount = countRemovableBlocks(level);
@@ -383,15 +435,11 @@ int playLevel(uint16_t *screen,int *level,int fd)
 	platform.sx = 0;
 	platform.sy = 0;
 
-	struct fb_copyarea rect;
+	
 
 	drawImage(screen,(int)platform.x,(int)platform.y,platformSizeX,platformSizeY,platformData);
 
-	rect.dx = (int)platform.x;
-	rect.dy = (int)platform.y;
-	rect.width = platformSizeX;
-	rect.height = platformSizeY;
-	ioctl(fd,0x4680,&rect);
+	refreshRect((int)platform.x,(int)platform.y,platformSizeX,platformSizeY,fd);
 
 	long lastTime = 0;
 	long startTime = getTime();
@@ -441,17 +489,14 @@ int playLevel(uint16_t *screen,int *level,int fd)
 			if(removeCount <= 0)
 				return 0;
 
-			//Set the rect we want to update to clear the square
-			rect.dx = (collisionIndex % BOARDSQUARESHIGH) * grayBlockSizeX;
-			rect.dy = (collisionIndex / BOARDSQUARESHIGH) * grayBlockSizeY;
-			rect.width = grayBlockSizeX;
-			rect.height = grayBlockSizeY;
+			int blockPosX =(collisionIndex % BOARDSQUARESWIDE) * grayBlockSizeX;
+			int blockPosY = (collisionIndex / BOARDSQUARESWIDE) * grayBlockSizeY;
 
 			//clear the block
-			clearRect(screen,rect.dx,rect.dy,rect.width,rect.height);
-			
-			//update the screen at this position
-			ioctl(fd,0x4680,&rect);
+			clearRect(screen,blockPosX,blockPosY,grayBlockSizeX,grayBlockSizeY);
+
+			//Refresh screen at this position
+			refreshRect(blockPosX,blockPosY,grayBlockSizeX,grayBlockSizeY,fd);
 		}
 		
 		int drawBallx = (int)ball.x;
@@ -462,35 +507,33 @@ int playLevel(uint16_t *screen,int *level,int fd)
 		//draw the ball
 		drawImage(screen,drawBallx,drawBally,ballSizeX,ballSizeY,ballData);
 
-		rect.dx = min(drawBallx,oldBallx);	//the rect should include both the new and the old ball that is removed
-		rect.dy = min(drawBally,oldBally);
-		rect.width = ballSizeX + 1;  //TODO This should plus the absolute value of the speed
-		rect.height = ballSizeY + 1;
-
-		//Update the screen at the ball
-		ioctl(fd,0x4680,&rect);
+		//refresh the screen at the ball position
+		refreshRect(min(drawBallx,oldBallx)-1,		//the rect should include both the new and the old ball that is removed
+			min(drawBally,oldBally)-1,
+			ballSizeX + (int)absolute(ball.sx)+1,
+			ballSizeY + (int)absolute(ball.sy)+1, 
+			fd);
 
 		if(platform.sx < -0.0001 || platform.sx > 0.0001)
 		{
-			if(platform.sx < 0)
-				clearRect(screen,(int)(platform.x + platform.sx),(int)platform.y,(int)(absolute(platform.sx)) + 1,platformSizeY);
+			if(platform.sx > 0)
+				clearRect(screen,(int)(platform.x - platform.sx),(int)platform.y,(int)(absolute(platform.sx)) + 1,platformSizeY);
 			else
 				clearRect(screen,(int)(platform.x + platformSizeX),(int)platform.y,(int)(absolute(platform.sx)) + 1,platformSizeY);
 
 			//Draw the platform
 			drawImage(screen,(int)platform.x,(int)platform.y,platformSizeX,platformSizeY,platformData);
-			//Update the screen at the position of the platform
-			if(platform_sx < 0)
-				rect.dx = (int)platform.x;
-			else
-				rect.dx = (int)(platform.x - platform.sx);
-			rect.dy = (int)platform.y;
-			rect.width = platformSizeX + (int)absolute(platform.sx) + 1+3;
-			rect.height = platformSizeY + 3;
-			ioctl(fd,0x4680,&rect);
-		}
 
-		refreshScreen(fd);
+			//Update the screen at the position of the platform
+			int refreshPosX = 0;
+			if(platform_sx < 0)
+				refreshPosX = (int)platform.x;
+			else
+				refreshPosX = (int)(platform.x - platform.sx);
+
+			//refresh screen at position of platform
+			refreshRect(refreshPosX, (int)platform.y, platformSizeX + (int)absolute(platform.sx) + 1, platformSizeY, fd);
+		}
 
 		long endTime = getTime();
 

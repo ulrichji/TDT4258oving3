@@ -10,8 +10,9 @@ CFLAGS += -O2 -g -Wall#-Wsign-compare -Wfloat-equal -Wformat-security #-Werror
 CPPFLAGS +=
 LDFLAGS +=
 
-
 all: game
+
+game: game.c screenutil.c
 
 clean:
 	-rm -f game
