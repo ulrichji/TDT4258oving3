@@ -119,9 +119,15 @@ int* loadMap(uint16_t *screen,int level)
 		break;
 	case 1:
 		board = board2;
-
+		break;
+	case 2:
+		board = board3;
+		break;
+	case 3:
+		board = board4;
+		break;
 	default:
-		board = board2;
+		board = board1;
 		break;
 	}
 
@@ -220,6 +226,51 @@ struct MovableGameObject
 	struct ImageDescriptor image;
 };
 
+void refreshRect(int x,int y,int width,int height,int fd)
+{
+	struct fb_copyarea rect;
+
+	rect.dx = x;
+	rect.dy = y + 1;
+	rect.width = width;
+	rect.height = height;
+
+	//We need to check that we are within bounds of screen
+	if(x < 0)
+	{
+		rect.dx = 0;	//set position to 0
+		rect.width = rect.width + x;	//decrease width by ammount of negative x
+		//if the width are negative, the whole rect is outside board and no refresh is needed
+		if(rect.width <= 0)
+			return;
+	}
+	//Outside the bounds on other side of screen
+	else if(x + width > SCREENWIDTH)
+	{
+		rect.width = SCREENWIDTH - x;
+		//if the width is negative, then we are outside the bounds of the screen
+		if(rect.width <= 0)
+			return;
+	}
+
+	if(y < 0)
+	{
+		rect.dy = 0;	//Set position to 0
+		rect.height = rect.height + y;	//subtract the height by the ammount of rect that is outside of the bounds
+		if(rect.height <= 0)
+			return;
+	}
+	else if(y + height > SCREENHEIGHT)
+	{
+		//set the height to ammount of square that is outside of the screen bounds
+		rect.height = SCREENHEIGHT - y;
+		if(rect.height <= 0)
+			return;
+	}
+
+	ioctl(fd,0x4680,&rect);
+}
+
 int applyCollision(struct MovableGameObject* ball,int *level)
 {
 	int collisionIndex = -1;
@@ -248,7 +299,7 @@ int applyCollision(struct MovableGameObject* ball,int *level)
 		ball->sy = -ball->sy;
 	}
 
-	if(ball->y < 120)
+	if(ball->y <= 160)
 	{
 		int leftIndex,rightIndex,downIndex,upIndex;
 
@@ -326,7 +377,6 @@ int applyCollision(struct MovableGameObject* ball,int *level)
 					//warp ball
 					ball->x = cornerX - ballSizeX;
 					ball->y = cornerY - ballSizeY;
-
 				}
 			}
 			//lower left
@@ -389,51 +439,6 @@ int applyCollision(struct MovableGameObject* ball,int *level)
 		}
 	}
 	return collisionIndex;
-}
-
-void refreshRect(int x,int y,int width,int height,int fd)
-{
-	struct fb_copyarea rect;
-
-	rect.dx = x;
-	rect.dy = y + 1;
-	rect.width = width;
-	rect.height = height;
-
-	//We need to check that we are within bounds of screen
-	if(x < 0)
-	{
-		rect.dx = 0;	//set position to 0
-		rect.width = rect.width + x;	//decrease width by ammount of negative x
-		//if the width are negative, the whole rect is outside board and no refresh is needed
-		if(rect.width <= 0)
-			return;
-	}
-	//Outside the bounds on other side of screen
-	else if(x + width > SCREENWIDTH)
-	{
-		rect.width = SCREENWIDTH - x;
-		//if the width is negative, then we are outside the bounds of the screen
-		if(rect.width <= 0)
-			return;
-	}
-
-	if(y < 0)
-	{
-		rect.dy = 0;	//Set position to 0
-		rect.height = rect.height + y;	//subtract the height by the ammount of rect that is outside of the bounds
-		if(rect.height <= 0)
-			return;
-	}
-	else if(y + height > SCREENHEIGHT)
-	{
-		//set the height to ammount of square that is outside of the screen bounds
-		rect.height = SCREENHEIGHT - y;
-		if(rect.height <= 0)
-			return;
-	}
-
-	ioctl(fd,0x4680,&rect);
 }
 
 int playLevel(uint16_t *screen,int *level,int lives,int fd)
@@ -672,6 +677,8 @@ int main(int argc, char *argv[])
 			//No lives left
 			if(gameResult <= 0)
 				break;
+
+			clearRect(screen,0,0,SCREENWIDTH,SCREENHEIGHT);
 
 			level++;
 			usleep(1000000);
