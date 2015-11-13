@@ -127,15 +127,23 @@ int* loadMap(uint16_t *screen,int level)
 		for(u=0;u<BOARDSQUARESWIDE;u++)
 		{
 			squareData[u+(i*BOARDSQUARESWIDE)] = board[u+(i*BOARDSQUARESWIDE)];
+
+			uint16_t mask = NOMASK;
+
 			switch(board[u+(i*BOARDSQUARESWIDE)])
 			{
-				case 1:
-					drawImage(screen,u*grayBlockSizeX,i*grayBlockSizeY,grayBlockSizeX,grayBlockSizeY,grayBlockData);
-					break;
 				case 2:
-					drawImage(screen,u*redBlockSizeX,i*redBlockSizeY,redBlockSizeX,redBlockSizeY,redBlockData);
+					mask = REDMASK;
+					break;
+				case 3:
+					mask = GREENMASK;
+					break;
+				case 4:
+					mask = BLUEMASK;
 					break;
 			}
+			if(board[u+(i*BOARDSQUARESWIDE)] != 0)
+				drawImage(screen,u*grayBlockSizeX,i*grayBlockSizeY,grayBlockSizeX,grayBlockSizeY,grayBlockData, mask);
 		}
 	}
 	return squareData;
@@ -305,45 +313,45 @@ int applyCollision(struct MovableGameObject* ball,int *level)
 				int tempCornerY = (centerYIndex + 1) * grayBlockSizeY;
 				if(tempCornerX > ball->x && tempCornerX < ball->x + ballSizeX && tempCornerY > ball->y && tempCornerY < ball->y + ballSizeY)
 				{
-					cornerX = tempCornerY;
+					cornerX = tempCornerX;
 					cornerY = tempCornerY;
 					collisionIndex = centerXIndex + 1 + ((centerYIndex + 1) * BOARDSQUARESWIDE);
 				}
 			}
 			//lower left
-			if(level[centerXIndex - 1 + ((centerYIndex + 1) * BOARDSQUARESWIDE)] != 0)
+			else if(level[centerXIndex - 1 + ((centerYIndex + 1) * BOARDSQUARESWIDE)] != 0)
 			{
 				int tempCornerX = (centerXIndex) * grayBlockSizeX;
 				int tempCornerY = (centerYIndex + 1) * grayBlockSizeY;
 				if(tempCornerX > ball->x && tempCornerX < ball->x + ballSizeX && tempCornerY > ball->y && tempCornerY < ball->y + ballSizeY)
 				{
-					cornerX = tempCornerY;
+					cornerX = tempCornerX;
 					cornerY = tempCornerY;
 					collisionIndex = centerXIndex - 1 + ((centerYIndex + 1) * BOARDSQUARESWIDE);
 				}
 			}
 			//upper right
-			if(level[centerXIndex + 1 + ((centerYIndex - 1) * BOARDSQUARESHIGH)] != 0)
+			else if(level[centerXIndex + 1 + ((centerYIndex - 1) * BOARDSQUARESHIGH)] != 0)
 			{
 				int tempCornerX = (centerXIndex + 1) * grayBlockSizeX;
 				int tempCornerY = (centerYIndex) * grayBlockSizeY;
 				if(tempCornerX > ball->x && tempCornerX < ball->x + ballSizeX && tempCornerY > ball->y && tempCornerY < ball->y + ballSizeY)
 				{
-					cornerX = tempCornerY;
+					cornerX = tempCornerX;
 					cornerY = tempCornerY;
-					collisionIndex = centerXIndex + 1 + ((centerYIndex - 1) * BOARDSQUARESHIGH);
+					collisionIndex = centerXIndex + 1 + ((centerYIndex - 1) * BOARDSQUARESWIDE);
 				}
 			}
 			//upper left
-			if(level[centerXIndex - 1 + ((centerYIndex - 1) * BOARDSQUARESHIGH)] != 0)
+			else if(level[centerXIndex - 1 + ((centerYIndex - 1) * BOARDSQUARESHIGH)] != 0)
 			{
 				int tempCornerX = (centerXIndex) * grayBlockSizeX;
 				int tempCornerY = (centerYIndex) * grayBlockSizeY;
 				if(tempCornerX > ball->x && tempCornerX < ball->x + ballSizeX && tempCornerY > ball->y && tempCornerY < ball->y + ballSizeY)
 				{
-					cornerX = tempCornerY;
+					cornerX = tempCornerX;
 					cornerY = tempCornerY;
-					collisionIndex = centerXIndex - 1 + ((centerYIndex - 1) * BOARDSQUARESHIGH);
+					collisionIndex = centerXIndex - 1 + ((centerYIndex - 1) * BOARDSQUARESWIDE);
 				}
 			}
 
@@ -354,16 +362,6 @@ int applyCollision(struct MovableGameObject* ball,int *level)
 				float c = -2 * (ball->sx * x + ball->sy * y) / (x * x + y * y);
 				ball->sx = ball->sx + (c * x);
 				ball->sy = ball->sy + (c * y);
-
-				/*float centerDistanceSquared = ((cornerX - ballCenterX)*(cornerX - ballCenterX)) + ((cornerY - ballCenterY)*(cornerY - ballCenterY));
-				float tempValue = ((ballsx * (ballCenterX - cornerX)) + (ballsy * (ballCenterY - cornerY))) / centerDistanceSquared;
-				ballsx = ballsx - (2 * tempValue * (ballCenterX - cornerX));
-				ballsy = ballsy - (2 * tempValue * (ballCenterY - cornerY));*/
-
-				//ballx = oldBallx;
-				//bally = oldBally;
-
-				//level[collisionIndex] = 0;
 			}
 		}
 	}
@@ -434,7 +432,7 @@ int playLevel(uint16_t *screen,int *level,int fd)
 	platform.sx = 0;
 	platform.sy = 0;	
 
-	drawImage(screen,(int)platform.x,(int)platform.y,platformSizeX,platformSizeY,platformData);
+	drawImage(screen,(int)platform.x,(int)platform.y,platformSizeX,platformSizeY,platformData, NOMASK);
 
 	refreshRect((int)platform.x,(int)platform.y,platformSizeX,platformSizeY,fd);
 
@@ -506,7 +504,7 @@ int playLevel(uint16_t *screen,int *level,int fd)
 		//Clear the ball
 		clearRect(screen,(int)oldBallx,(int)oldBally,ballSizeX,ballSizeY);
 		//draw the ball
-		drawImage(screen,drawBallx,drawBally,ballSizeX,ballSizeY,ballData);
+		drawImage(screen,drawBallx,drawBally,ballSizeX,ballSizeY,ballData, NOMASK);
 
 		//refresh the screen at the ball position
 		refreshRect(min(drawBallx,(int)oldBallx),		//the rect should include both the new and the old ball that is removed
@@ -536,7 +534,7 @@ int playLevel(uint16_t *screen,int *level,int fd)
 					platformSizeY);
 
 			//Draw the platform
-			drawImage(screen,(int)platform.x,(int)platform.y,platformSizeX,platformSizeY,platformData);
+			drawImage(screen,(int)platform.x,(int)platform.y,platformSizeX,platformSizeY,platformData, NOMASK);
 
 			//refresh screen at position of platform
 			refreshRect(min((int)platform.x, (int)oldPlatformx),	//The minimum of the new and old pos
@@ -558,8 +556,10 @@ int playLevel(uint16_t *screen,int *level,int fd)
 		long endTime = getTime();
 
 		long sleepTime = SLEEPTIME - (endTime - startTime);
+		/*long nextTime = endTime + sleepTime;
 		if(sleepTime > 0)
-			usleep((int)sleepTime);
+			while(getTime() < nextTime);*/
+		usleep((int)sleepTime);
 	}
 	return 0;
 }

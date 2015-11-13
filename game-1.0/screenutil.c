@@ -2,7 +2,7 @@
 
 #include "screenutil.h"
 
-void drawImage(uint16_t *screen,int x,int y,int dx,int dy,const uint16_t *image)
+void drawImage(uint16_t *screen,int x,int y,int dx,int dy,const uint16_t *image, uint16_t colorMask)
 {
 	int i,u;
 	int yCount=0,xCount=0;
@@ -10,7 +10,7 @@ void drawImage(uint16_t *screen,int x,int y,int dx,int dy,const uint16_t *image)
 	{
 		for(u=x;u<x+dx;u++)
 		{
-			screen[u+(i*SCREENWIDTH)] = image[xCount+(yCount*dx)];
+			screen[u+(i*SCREENWIDTH)] = image[xCount+(yCount*dx)] & colorMask;
 			xCount++;
 		}
 		xCount = 0;
