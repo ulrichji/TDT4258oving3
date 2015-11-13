@@ -13,7 +13,6 @@
 
 #include "boards.h"
 #include "images/grayBlock.h"
-#include "images/redBlock.h"
 #include "images/ball.h"
 #include "images/platform.h"
 
@@ -29,6 +28,8 @@
 #define PLATFORMSTARTSPEED 150 //in pixels per second
 #define FPS 60
 #define SLEEPTIME 1000000 / FPS 
+
+#define NUMBEROFLIVES 4
 
 #define SW1 0x1
 #define SW3 0x4
@@ -116,9 +117,11 @@ int* loadMap(uint16_t *screen,int level)
 	case 0:
 		board = board1;
 		break;
+	case 1:
+		board = board2;
 
 	default:
-		board = board1;
+		board = board2;
 		break;
 	}
 
@@ -140,6 +143,9 @@ int* loadMap(uint16_t *screen,int level)
 					break;
 				case 4:
 					mask = BLUEMASK;
+					break;
+				case 5:
+					mask = YELLOWMASK;
 					break;
 			}
 			if(board[u+(i*BOARDSQUARESWIDE)] != 0)
@@ -316,6 +322,11 @@ int applyCollision(struct MovableGameObject* ball,int *level)
 					cornerX = tempCornerX;
 					cornerY = tempCornerY;
 					collisionIndex = centerXIndex + 1 + ((centerYIndex + 1) * BOARDSQUARESWIDE);
+
+					//warp ball
+					ball->x = cornerX - ballSizeX;
+					ball->y = cornerY - ballSizeY;
+
 				}
 			}
 			//lower left
@@ -328,6 +339,10 @@ int applyCollision(struct MovableGameObject* ball,int *level)
 					cornerX = tempCornerX;
 					cornerY = tempCornerY;
 					collisionIndex = centerXIndex - 1 + ((centerYIndex + 1) * BOARDSQUARESWIDE);
+
+					//warp ball
+					ball->x = cornerX;
+					ball->y = cornerY - ballSizeY;
 				}
 			}
 			//upper right
@@ -340,6 +355,10 @@ int applyCollision(struct MovableGameObject* ball,int *level)
 					cornerX = tempCornerX;
 					cornerY = tempCornerY;
 					collisionIndex = centerXIndex + 1 + ((centerYIndex - 1) * BOARDSQUARESWIDE);
+
+					//warp ball
+					ball->x = cornerX - ballSizeX;
+					ball->y = cornerY;
 				}
 			}
 			//upper left
@@ -352,6 +371,10 @@ int applyCollision(struct MovableGameObject* ball,int *level)
 					cornerX = tempCornerX;
 					cornerY = tempCornerY;
 					collisionIndex = centerXIndex - 1 + ((centerYIndex - 1) * BOARDSQUARESWIDE);
+
+					//warp ball
+					ball->x = cornerX;
+					ball->y = cornerY;
 				}
 			}
 
@@ -413,12 +436,15 @@ void refreshRect(int x,int y,int width,int height,int fd)
 	ioctl(fd,0x4680,&rect);
 }
 
-int playLevel(uint16_t *screen,int *level,int fd)
+int playLevel(uint16_t *screen,int *level,int lives,int fd)
 {
 	int removeCount = countRemovableBlocks(level);
 	float ballSpeed = BALLSTARTSPEED;		//The speed the ball is travelling in
 	float platformSpeed = PLATFORMSTARTSPEED;//the horizontal speed of the platform
 	float deltaTime = 1;
+
+	uint16_t ballMask = NOMASK;
+
 	struct MovableGameObject ball;			//The ball
 	struct MovableGameObject platform;		//The platform
 
@@ -431,6 +457,22 @@ int playLevel(uint16_t *screen,int *level,int fd)
 	platform.y = PLATFORMSTARTY;
 	platform.sx = 0;
 	platform.sy = 0;	
+
+	switch(lives)
+	{
+	case 1:
+		ballMask = REDMASK;
+		break;
+	case 2:
+		ballMask = BLUEMASK;
+		break;
+	case 3:
+		ballMask = GREENMASK;
+		break;
+	default:
+		ballMask = NOMASK;
+		break;
+	}
 
 	drawImage(screen,(int)platform.x,(int)platform.y,platformSizeX,platformSizeY,platformData, NOMASK);
 
@@ -476,6 +518,58 @@ int playLevel(uint16_t *screen,int *level,int fd)
 			ball.sx *= ballSpeed;
 			ball.sy *= ballSpeed;
 		}
+		//We have lost
+		else if(ball.y > platform.y)
+		{
+			lives --;
+
+			printf("Lost a life. Now you have %d lives\n",lives);
+
+			if(lives <= 0)
+				return 0;
+
+			switch(lives)
+			{
+			case 1:
+				ballMask = REDMASK;
+				break;
+			case 2:
+				ballMask = YELLOWMASK;
+				break;
+			case 3:
+				ballMask = GREENMASK;
+				break;
+			default:
+				ballMask = NOMASK;
+				break;
+			}
+
+			ball.x = STARTBALLX;
+			ball.y = STARTBALLY;
+			ball.sx = ballSpeed * 0.1; //This is hardcoded and not correct. Will give different speed
+			ball.sy = ballSpeed * 0.9; //This is hardcoded and not correct. Will give different speed
+
+			platform.x = PLATFORMSTARTX;
+			platform.y = PLATFORMSTARTY;
+			platform.sx = 0;
+			platform.sy = 0;
+
+			//Clear the ball
+			clearRect(screen,(int)oldBallx,(int)oldBally,ballSizeX,ballSizeY);
+			//draw the ball
+			drawImage(screen,(int)ball.x,(int)ball.y,ballSizeX,ballSizeY,ballData, ballMask);
+
+			//remove current position of platform
+			clearRect(screen,(int)oldPlatformx,platform.y,platformSizeX,platformSizeY);
+			//Draw the new platform
+			drawImage(screen,(int)platform.x,(int)platform.y,platformSizeX,platformSizeY,platformData, NOMASK);
+
+			//Refresh the whole screen. (Should be more opimized)
+			refreshScreen(fd);
+			usleep(1000000);
+			lastTime = getTime();
+			continue;
+		}
 
 		//now repaint what we need to repaint
 		if(collisionIndex >= 0 && level[collisionIndex] > 1)
@@ -485,7 +579,7 @@ int playLevel(uint16_t *screen,int *level,int fd)
 
 			//there are no more blocks to remove, and the level is done
 			if(removeCount <= 0)
-				return 0;
+				return lives;
 
 			int blockPosX = (collisionIndex % BOARDSQUARESWIDE) * grayBlockSizeX;
 			int blockPosY = (collisionIndex / BOARDSQUARESWIDE) * grayBlockSizeY;
@@ -504,7 +598,7 @@ int playLevel(uint16_t *screen,int *level,int fd)
 		//Clear the ball
 		clearRect(screen,(int)oldBallx,(int)oldBally,ballSizeX,ballSizeY);
 		//draw the ball
-		drawImage(screen,drawBallx,drawBally,ballSizeX,ballSizeY,ballData, NOMASK);
+		drawImage(screen,drawBallx,drawBally,ballSizeX,ballSizeY,ballData, ballMask);
 
 		//refresh the screen at the ball position
 		refreshRect(min(drawBallx,(int)oldBallx),		//the rect should include both the new and the old ball that is removed
@@ -512,10 +606,6 @@ int playLevel(uint16_t *screen,int *level,int fd)
 			ballSizeX + (int)absolute(drawBallx - oldBallx) + 1,
 			ballSizeY + (int)absolute(drawBally - oldBally) + 1, 
 			fd);
-		/*printf("%d %d %d %d\n",min(drawBallx,(int)oldBallx)-1,		//the rect should include both the new and the old ball that is removed
-			min(drawBally,oldBally)-1,
-			ballSizeX + max(drawBallx - (int)oldBallx,(int)oldBallx - drawBallx),
-			ballSizeY + max(drawBally - (int)oldBally,(int)oldBally - drawBally));*/
 
 		if(platform.sx < -0.0001 || platform.sx > 0.0001)
 		{
@@ -542,13 +632,6 @@ int playLevel(uint16_t *screen,int *level,int fd)
 				platformSizeX + (int)absolute(platform.x - oldPlatformx) + 1,	//Refresh the size of platform plus the ammount it has moved
 				platformSizeY,
 				fd);
-			//refreshRect(0,(int)platform.y,SCREENWIDTH,platformSizeY,fd);
-
-			/*printf("draw: %d %d %d %d \nrefresh: %d %d %d %d\n",(int)platform.x,(int)platform.y,platformSizeX,platformSizeY,
-				min((int)platform.x, (int)oldPlatformx),
-				(int)platform.y,
-				platformSizeX + (int)absolute(platform.x - oldPlatformx) + 1,
-				platformSizeY);*/
 		}
 
 		//refreshScreen(fd);
@@ -569,6 +652,7 @@ int main(int argc, char *argv[])
 	int fd = open("/dev/fb0",O_RDWR);
 	int level = 0;
 	int * currentLevel;
+	int gameResult = NUMBEROFLIVES;
 	if(!fd)
 		printf("File was not opened");
 	else
@@ -578,13 +662,26 @@ int main(int argc, char *argv[])
 
 		initDriver();
 
-		currentLevel = loadMap(screen,level);
+		while(level < NUMBEROFLEVELS)
+		{
+			currentLevel = loadMap(screen,level);
 
-		refreshScreen(fd);
+			refreshScreen(fd);
 
-		playLevel(screen,currentLevel,fd);
+			gameResult = playLevel(screen,currentLevel,gameResult,fd);
+			//No lives left
+			if(gameResult <= 0)
+				break;
 
-		printf("Hello World, I'm game!\n");
+			level++;
+			usleep(1000000);
+		}
+
+		//The game is done. Eval result
+		if(gameResult <= 0)
+			printf("You lost the game :-(. Try again...\n");
+		else
+			printf("You won the game. That is impressive!\n");
 	}
 	exit(EXIT_SUCCESS);
 }
