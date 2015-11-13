@@ -23,10 +23,10 @@
 
 #define STARTBALLX 160
 #define STARTBALLY 180
-#define BALLSTARTSPEED 100	//in pixels per second
+#define BALLSTARTSPEED 120	//in pixels per second
 #define PLATFORMSTARTX (SCREENWIDTH / 2) - 20 	//Platform size should be constant
 #define PLATFORMSTARTY 220
-#define PLATFORMSTARTSPEED 50 //in pixels per second
+#define PLATFORMSTARTSPEED 150 //in pixels per second
 #define FPS 60
 #define SLEEPTIME 1000000 / FPS 
 
@@ -47,7 +47,7 @@ int mem;
 int platform_sx=0;
 
 void gamepad_handler(int signum) {
-	printf("Entered handlerrr\n");
+	//printf("Entered handlerrr\n");
 	unsigned btn_id;
 	int readstatus = read(driver_descriptor, &btn_id, sizeof(int));
 
@@ -375,11 +375,11 @@ void refreshRect(int x,int y,int width,int height,int fd)
 	struct fb_copyarea rect;
 
 	rect.dx = x;
-	rect.dy = y;
+	rect.dy = y + 1;
 	rect.width = width;
-	rect.height = width;
+	rect.height = height;
 
-	//We need to check that we are within bouds of screen
+	//We need to check that we are within bounds of screen
 	if(x < 0)
 	{
 		rect.dx = 0;	//set position to 0
@@ -387,7 +387,6 @@ void refreshRect(int x,int y,int width,int height,int fd)
 		//if the width are negative, the whole rect is outside board and no refresh is needed
 		if(rect.width <= 0)
 			return;
-
 	}
 	//Outside the bounds on other side of screen
 	else if(x + width > SCREENWIDTH)
@@ -409,7 +408,7 @@ void refreshRect(int x,int y,int width,int height,int fd)
 	{
 		//set the height to ammount of square that is outside of the screen bounds
 		rect.height = SCREENHEIGHT - y;
-		if(rect.height < 0)
+		if(rect.height <= 0)
 			return;
 	}
 
@@ -433,9 +432,7 @@ int playLevel(uint16_t *screen,int *level,int fd)
 	platform.x = PLATFORMSTARTX;
 	platform.y = PLATFORMSTARTY;
 	platform.sx = 0;
-	platform.sy = 0;
-
-	
+	platform.sy = 0;	
 
 	drawImage(screen,(int)platform.x,(int)platform.y,platformSizeX,platformSizeY,platformData);
 
@@ -450,6 +447,9 @@ int playLevel(uint16_t *screen,int *level,int fd)
 		startTime = getTime();
 
 		deltaTime = (float)(startTime - lastTime) / 1000000.0;
+
+		float oldPlatformx = platform.x;
+		//float oldPlatformy = platform.y;
 
 		platform.sx = platform_sx * platformSpeed * deltaTime;
 		platform.x += platform.sx;
@@ -473,7 +473,7 @@ int playLevel(uint16_t *screen,int *level,int fd)
 			ball.x < platform.x + platformSizeX)		//right side of ball is on platform
 		{
 			ball.y = platform.y - ballSizeY;
-			ball.sx = ((ball.x + (ballSizeX / 2)) - (platform.x + (platformSizeX / 2))) / ((float)platformSizeX*2);
+			ball.sx = ((ball.x + (ballSizeX / 2)) - (platform.x + (platformSizeX / 2))) / ((float)platformSizeX);
 			ball.sy = -sqrtf(1 - (ball.sx * ball.sx));
 			ball.sx *= ballSpeed;
 			ball.sy *= ballSpeed;
@@ -489,10 +489,11 @@ int playLevel(uint16_t *screen,int *level,int fd)
 			if(removeCount <= 0)
 				return 0;
 
-			int blockPosX =(collisionIndex % BOARDSQUARESWIDE) * grayBlockSizeX;
+			int blockPosX = (collisionIndex % BOARDSQUARESWIDE) * grayBlockSizeX;
 			int blockPosY = (collisionIndex / BOARDSQUARESWIDE) * grayBlockSizeY;
 
-			//clear the block
+			//clear the block);
+
 			clearRect(screen,blockPosX,blockPosY,grayBlockSizeX,grayBlockSizeY);
 
 			//Refresh screen at this position
@@ -508,32 +509,51 @@ int playLevel(uint16_t *screen,int *level,int fd)
 		drawImage(screen,drawBallx,drawBally,ballSizeX,ballSizeY,ballData);
 
 		//refresh the screen at the ball position
-		refreshRect(min(drawBallx,oldBallx)-1,		//the rect should include both the new and the old ball that is removed
-			min(drawBally,oldBally)-1,
-			ballSizeX + (int)absolute(ball.sx)+1,
-			ballSizeY + (int)absolute(ball.sy)+1, 
+		refreshRect(min(drawBallx,(int)oldBallx),		//the rect should include both the new and the old ball that is removed
+			min(drawBally,(int)oldBally),
+			ballSizeX + (int)absolute(drawBallx - oldBallx) + 1,
+			ballSizeY + (int)absolute(drawBally - oldBally) + 1, 
 			fd);
+		/*printf("%d %d %d %d\n",min(drawBallx,(int)oldBallx)-1,		//the rect should include both the new and the old ball that is removed
+			min(drawBally,oldBally)-1,
+			ballSizeX + max(drawBallx - (int)oldBallx,(int)oldBallx - drawBallx),
+			ballSizeY + max(drawBally - (int)oldBally,(int)oldBally - drawBally));*/
 
 		if(platform.sx < -0.0001 || platform.sx > 0.0001)
 		{
 			if(platform.sx > 0)
-				clearRect(screen,(int)(platform.x - platform.sx),(int)platform.y,(int)(absolute(platform.sx)) + 1,platformSizeY);
+				clearRect(screen,
+					(int)oldPlatformx,	//Start at the old position
+					(int)platform.y,
+					(int)absolute((int)platform.x - (int)oldPlatformx),	//Clear the ammount it have moved
+					platformSizeY);
+
 			else
-				clearRect(screen,(int)(platform.x + platformSizeX),(int)platform.y,(int)(absolute(platform.sx)) + 1,platformSizeY);
+				clearRect(screen,
+					(int)platform.x + platformSizeX,  //Start at the right side of the platform 
+					(int)platform.y,
+					(int)absolute((int)platform.x - (int)oldPlatformx), //Clear the ammount it have moved
+					platformSizeY);
 
 			//Draw the platform
 			drawImage(screen,(int)platform.x,(int)platform.y,platformSizeX,platformSizeY,platformData);
 
-			//Update the screen at the position of the platform
-			int refreshPosX = 0;
-			if(platform_sx < 0)
-				refreshPosX = (int)platform.x;
-			else
-				refreshPosX = (int)(platform.x - platform.sx);
-
 			//refresh screen at position of platform
-			refreshRect(refreshPosX, (int)platform.y, platformSizeX + (int)absolute(platform.sx) + 1, platformSizeY, fd);
+			refreshRect(min((int)platform.x, (int)oldPlatformx),	//The minimum of the new and old pos
+				(int)platform.y,
+				platformSizeX + (int)absolute(platform.x - oldPlatformx) + 1,	//Refresh the size of platform plus the ammount it has moved
+				platformSizeY,
+				fd);
+			//refreshRect(0,(int)platform.y,SCREENWIDTH,platformSizeY,fd);
+
+			/*printf("draw: %d %d %d %d \nrefresh: %d %d %d %d\n",(int)platform.x,(int)platform.y,platformSizeX,platformSizeY,
+				min((int)platform.x, (int)oldPlatformx),
+				(int)platform.y,
+				platformSizeX + (int)absolute(platform.x - oldPlatformx) + 1,
+				platformSizeY);*/
 		}
+
+		//refreshScreen(fd);
 
 		long endTime = getTime();
 
