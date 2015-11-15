@@ -9,7 +9,6 @@
 #include <signal.h>
 #include <sys/types.h>
 #include <errno.h>
-#include <time.h>
 
 #include "boards.h"
 #include "images/grayBlock.h"
@@ -17,6 +16,7 @@
 #include "images/platform.h"
 
 #include "screenutil.h"
+#include "gameutil.h"
 
 #define RGB(r,g,b) ((r<<11) | (g<<5) | (b<<0))
 
@@ -33,15 +33,6 @@
 
 #define SW1 0x1
 #define SW3 0x4
-
-struct Image
-{
-	int x;
-	int y;
-	int height;
-	int width;
-	uint16_t* imageData;
-};
 
 int driver_descriptor;
 int mem;
@@ -86,23 +77,6 @@ void initDriver()
 	if(sigstatus == SIG_ERR) {
 		printf("Failed to initialize signal handler\n");
 	}
-}
-
-float absolute(float x)
-{
-     if (x < 0)
-         x = -x;
-     return x;
-}
-
-float sqrtf(float x)
-{
-	float guess = 3.333;
-
-    while(absolute(guess*guess - x) >= 0.0001 )
-        guess = ((x/guess) + guess) / 2.0;
-
-    return guess;
 }
 
 int* loadMap(uint16_t *screen,int level)
@@ -161,17 +135,6 @@ int* loadMap(uint16_t *screen,int level)
 	return squareData;
 }
 
-void refreshScreen(int fd)
-{
-	struct fb_copyarea rect;
-
-	rect.dx = 0;
-	rect.dy = 0;
-	rect.width = SCREENWIDTH;
-	rect.height = SCREENHEIGHT;
-	ioctl(fd,0x4680,&rect);
-}
-
 int countRemovableBlocks(int *level)
 {
 	int i,u;
@@ -186,89 +149,6 @@ int countRemovableBlocks(int *level)
 		}
 	}
 	return count;
-}
-
-int min(int a,int b)
-{
-	if(a<b)
-		return a;
-	return b;
-}
-
-int max(int a,int b)
-{
-	if(a>b)
-		return a;
-	return b;
-}
-
-long getTime()
-{
-	struct timeval tv;
-	gettimeofday(&tv,NULL);
-	return (1000000 * tv.tv_sec) + tv.tv_usec;
-}
-
-struct ImageDescriptor
-{
-	int width;
-	int height;
-};
-
-struct MovableGameObject
-{
-	float x;
-	float y;
-	float sx;
-	float sy;
-	int width;
-	int height;
-	struct ImageDescriptor image;
-};
-
-void refreshRect(int x,int y,int width,int height,int fd)
-{
-	struct fb_copyarea rect;
-
-	rect.dx = x;
-	rect.dy = y + 1;
-	rect.width = width;
-	rect.height = height;
-
-	//We need to check that we are within bounds of screen
-	if(x < 0)
-	{
-		rect.dx = 0;	//set position to 0
-		rect.width = rect.width + x;	//decrease width by ammount of negative x
-		//if the width are negative, the whole rect is outside board and no refresh is needed
-		if(rect.width <= 0)
-			return;
-	}
-	//Outside the bounds on other side of screen
-	else if(x + width > SCREENWIDTH)
-	{
-		rect.width = SCREENWIDTH - x;
-		//if the width is negative, then we are outside the bounds of the screen
-		if(rect.width <= 0)
-			return;
-	}
-
-	if(y < 0)
-	{
-		rect.dy = 0;	//Set position to 0
-		rect.height = rect.height + y;	//subtract the height by the ammount of rect that is outside of the bounds
-		if(rect.height <= 0)
-			return;
-	}
-	else if(y + height > SCREENHEIGHT)
-	{
-		//set the height to ammount of square that is outside of the screen bounds
-		rect.height = SCREENHEIGHT - y;
-		if(rect.height <= 0)
-			return;
-	}
-
-	ioctl(fd,0x4680,&rect);
 }
 
 int applyCollision(struct MovableGameObject* ball,int *level)

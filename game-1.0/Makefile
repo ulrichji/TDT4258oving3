@@ -12,7 +12,7 @@ LDFLAGS +=
 
 all: game
 
-game: game.c screenutil.c
+game: game.c screenutil.c gameutil.c
 
 clean:
 	-rm -f game
