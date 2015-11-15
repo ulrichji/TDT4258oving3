@@ -572,7 +572,7 @@ int playLevel(uint16_t *screen,int *level,int lives,int fd)
 			//Refresh the whole screen. (Should be more opimized)
 			refreshScreen(fd);
 			usleep(1000000);
-			lastTime = getTime();
+			startTime = getTime();
 			continue;
 		}
 
