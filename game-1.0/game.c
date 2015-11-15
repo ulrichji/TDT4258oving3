@@ -295,79 +295,102 @@ int applyCollision(struct MovableGameObject* ball,int *level)
 		//If not a flat collision, it is a corner collision.
 		else
 		{
+			//the coordinate of the corner. -1 means that no corner is intersected by the ball
 			int cornerX = -1;
 			int cornerY = -1;
 
-			//lower right
+			//Is there a block on the lower right corner 
 			if(level[centerXIndex + 1 + ((centerYIndex + 1) * BOARDSQUARESWIDE)] != 0)
 			{
+				//the coordinates of this corner
 				int tempCornerX = (centerXIndex + 1) * grayBlockSizeX;
 				int tempCornerY = (centerYIndex + 1) * grayBlockSizeY;
+				//if the ball is intersecting corner
 				if(tempCornerX > ball->x && tempCornerX < ball->x + ballSizeX && tempCornerY > ball->y && tempCornerY < ball->y + ballSizeY)
 				{
+					//set the collision corner
 					cornerX = tempCornerX;
 					cornerY = tempCornerY;
+					//store the index of the block we collided with
 					collisionIndex = centerXIndex + 1 + ((centerYIndex + 1) * BOARDSQUARESWIDE);
 
-					//warp ball
+					//warp the ball such that it's corner is at the blocks corner.
 					ball->x = cornerX - ballSizeX;
 					ball->y = cornerY - ballSizeY;
 				}
 			}
-			//lower left
+			//Is there a block on the lower left corner
 			else if(level[centerXIndex - 1 + ((centerYIndex + 1) * BOARDSQUARESWIDE)] != 0)
 			{
+				//the coordinates of this corner
 				int tempCornerX = (centerXIndex) * grayBlockSizeX;
 				int tempCornerY = (centerYIndex + 1) * grayBlockSizeY;
+				//if the ball is intersecting corner
 				if(tempCornerX > ball->x && tempCornerX < ball->x + ballSizeX && tempCornerY > ball->y && tempCornerY < ball->y + ballSizeY)
 				{
+					//set the collision corner
 					cornerX = tempCornerX;
 					cornerY = tempCornerY;
+					//store the index of the block we collided with
 					collisionIndex = centerXIndex - 1 + ((centerYIndex + 1) * BOARDSQUARESWIDE);
 
-					//warp ball
+					//warp the ball such that it's corner is at the blocks corner.
 					ball->x = cornerX;
 					ball->y = cornerY - ballSizeY;
 				}
 			}
-			//upper right
+			////Is there a block on the upper right corner
 			else if(level[centerXIndex + 1 + ((centerYIndex - 1) * BOARDSQUARESHIGH)] != 0)
 			{
+				//the coordinates of this corner
 				int tempCornerX = (centerXIndex + 1) * grayBlockSizeX;
 				int tempCornerY = (centerYIndex) * grayBlockSizeY;
+				//if the ball is intersecting corner
 				if(tempCornerX > ball->x && tempCornerX < ball->x + ballSizeX && tempCornerY > ball->y && tempCornerY < ball->y + ballSizeY)
 				{
+					//set the collision corner
 					cornerX = tempCornerX;
 					cornerY = tempCornerY;
+					//store the index of the block we collided with
 					collisionIndex = centerXIndex + 1 + ((centerYIndex - 1) * BOARDSQUARESWIDE);
 
-					//warp ball
+					//warp the ball such that it's corner is at the blocks corner.
 					ball->x = cornerX - ballSizeX;
 					ball->y = cornerY;
 				}
 			}
-			//upper left
+			//Is there a block on the upper left corner
 			else if(level[centerXIndex - 1 + ((centerYIndex - 1) * BOARDSQUARESHIGH)] != 0)
 			{
+				//the coordinates of this corner
 				int tempCornerX = (centerXIndex) * grayBlockSizeX;
 				int tempCornerY = (centerYIndex) * grayBlockSizeY;
+				//if the ball is intersecting corner
 				if(tempCornerX > ball->x && tempCornerX < ball->x + ballSizeX && tempCornerY > ball->y && tempCornerY < ball->y + ballSizeY)
 				{
+					//set the collision corner
 					cornerX = tempCornerX;
 					cornerY = tempCornerY;
+					//store the index of the block we collided with
 					collisionIndex = centerXIndex - 1 + ((centerYIndex - 1) * BOARDSQUARESWIDE);
 
-					//warp ball
+					//warp the ball such that it's corner is at the blocks corner.
 					ball->x = cornerX;
 					ball->y = cornerY;
 				}
 			}
 
+			//use elastic collision to find the balls new velocity
+			//this is based on the elastic collision formula in two dimensions for vectors.
+			//https://en.wikipedia.org/wiki/Elastic_collision
 			if(cornerX > 0 && cornerY > 0)
 			{
+				//the distance between center of ball and corner.
 				float x = ballCenterX - cornerX;
 				float y = ballCenterY - cornerY;
+				//use the formula
 				float c = -2 * (ball->sx * x + ball->sy * y) / (x * x + y * y);
+				//apply the new velocity
 				ball->sx = ball->sx + (c * x);
 				ball->sy = ball->sy + (c * y);
 			}
