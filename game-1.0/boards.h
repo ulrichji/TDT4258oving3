@@ -1,3 +1,6 @@
+#ifndef BOARDS_H
+#define BOARDS_H
+
 #define BOARDSQUARESWIDE 16
 #define BOARDSQUARESHIGH 16
 
@@ -70,3 +73,5 @@ int board4 [16*16] =   {0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,
 						0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
 						0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
 						0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
+
+#endif //BOARDS_H

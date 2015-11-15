@@ -1,14 +1,15 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <linux/fb.h>
-#include <stdint.h>
-#include <sys/mman.h>
-#include <unistd.h>
-#include <fcntl.h>
-#include <string.h>
-#include <signal.h>
-#include <sys/types.h>
-#include <errno.h>
+#include <stdio.h>		//for standard io like printf
+#include <stdlib.h>		//For malloc
+#include <stdint.h>		//Standard data types
+#include <unistd.h>		//For sleeping
+
+#include <fcntl.h>		//Used for the fcntl in driver initialization
+#include <string.h> 	//For memset
+#include <signal.h>		//For signals in driver initialization
+#include <errno.h>		//used for errortypes in driver initialization
+
+#include <sys/types.h>	//driver file operations
+#include <sys/mman.h>	//for memory mapping
 
 #include "boards.h"
 #include "images/grayBlock.h"
@@ -569,6 +570,10 @@ int main(int argc, char *argv[])
 			printf("You lost the game :-(. Try again...\n");
 		else
 			printf("You won the game. That is impressive!\n");
+
+		//close the driver
+		close(fd);
+		close(driver_descriptor);
 	}
 	exit(EXIT_SUCCESS);
 }

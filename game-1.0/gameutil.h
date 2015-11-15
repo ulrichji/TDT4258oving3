@@ -1,3 +1,5 @@
+#ifndef GAMEUTIL_H
+#define GAMEUTIL_H
 
 //Returns the absolute value of x
 float absolute(float x);
@@ -25,3 +27,5 @@ struct MovableGameObject
 	int width;		//the width of the object
 	int height;		//the height of the object
 };
+
+#endif	//GAMEUTIL_H
