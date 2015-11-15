@@ -5,6 +5,9 @@
 #include <linux/fs.h>
 #include <linux/interrupt.h>
 #include <linux/cdev.h>
+#include <linux/platform_device.h>
+#include <linux/of_platform.h>
+
 #include <linux/fcntl.h>
 #include <linux/device.h>
 #include <linux/poll.h>
@@ -12,12 +15,16 @@
 #include <linux/slab.h>
 #include <linux/mm.h>
 
-#include "efm32gg.h"
+#include <asm/io.h>
 
-struct cdev my_cdev; // Character device handle
-dev_t devnum; // Device number for our device
-struct fasync_struct *gamepad_queue; // Queue of signal listeners
-struct class *cl; // Class handle
+#include "globals.h"
+
+struct cdev my_cdev;			// Character device handle
+dev_t devnum;				// Device number for our device
+struct fasync_struct *gamepad_queue;	// Queue of signal listeners
+struct class *cl;			// Class handle
+
+volatile void *gpio_mem;		// Pointer to base address of GPIO registers 
 
 static int gamepad_fasync(int fd, struct file *filp, int mode)
 {
@@ -30,8 +37,7 @@ static int gamepad_fasync(int fd, struct file *filp, int mode)
 }
 
 static ssize_t gamepad_read(struct file *filp, char __user *buf, size_t count, loff_t *f_pos) {
-	unsigned btn_id = ~(*GPIO_PC_DIN); // Use active high instead of active low
-	btn_id &= 0xFF; // Clear the unused bits
+	unsigned btn_id = ~(ioread32(gpio_mem+GPIO_PC_DIN)); // Use active high instead of active low
 	copy_to_user(buf, &btn_id, sizeof(int)); // Copy input to user space
 
 	return sizeof(int); // Return number of bytes copied
@@ -49,12 +55,28 @@ irqreturn_t GPIO_handler(int irq, void* dev_id, struct pt_regs *regs) {
 	if (gamepad_queue) {
 		kill_fasync(&gamepad_queue, SIGIO, POLL_IN); // Signal listeners in queue
 	}
-	*GPIO_IFC = *GPIO_IF; // Set interrupt as handled in hardware
+	iowrite32(ioread32(gpio_mem + GPIO_IF), gpio_mem + GPIO_IFC); // Set interrupt as handled in hardware
+
 	return IRQ_HANDLED;
 }
 
-static int __init template_init(void)
-{
+
+static int my_probe(struct platform_device *dev) {
+	//Get GPIO information from platform device
+	struct resource *res = platform_get_resource(dev, IORESOURCE_MEM, GPIO_MEM_INDEX);
+	gpio_mem = res->start;
+	if(res == NULL) {
+		printk("Failed to get GPIO information from platform\n");
+		return -1;
+	}
+	
+	// Request exclusive access to GPIO registers during operation
+	struct resource *mem_req = request_mem_region(res->start, res->end - res->start, "driver-gamepad");
+	if(mem_req == NULL) {
+		printk(KERN_ERR "Failed to request GPIO memory region\n");
+		return -1;
+	}
+
 	cdev_init(&my_cdev, &gamepad_fops); // Initialize character device with our file operations
 	my_cdev.owner = THIS_MODULE; // Set character device module pointer to this module
 
@@ -70,22 +92,31 @@ static int __init template_init(void)
 	device_create(cl, NULL, devnum, NULL, "driver_gamepad"); // Create device file for our module
 
 	// Setup registers to enable GPIO in hardware
-	*CMU_HFPERCLKEN0 |= CMU2_HFPERCLKEN0_GPIO; //enable GPIO clock
-	*GPIO_PC_MODEL = 0x33333333; //Set pins C0 - C7 as input
-	*GPIO_PC_DOUT = 0xFF; //Set pins to active low?
-	*GPIO_EXTIPSELL = 0x22222222; //Set all pins to trigger interrupt
-	*GPIO_EXTIFALL = 0xFF; //Set pins to trigger interrupt on falling edge
-	*GPIO_EXTIRISE = 0xFF; //Set pins to trigger interrupt on rising edge	
-	*GPIO_IEN = 0xFF; //Enable interrupt
-	*ISER0 |= 0x802; //enable interrupt generation for gpio even and odd.	
-
+	iowrite32(0x33333333,	gpio_mem+GPIO_PC_MODEL);	//Set pins C0 - C7 as input
+	iowrite32(0xFF,		gpio_mem+GPIO_PC_DOUT);		//Set pins to active low?
+	iowrite32(0x22222222,	gpio_mem+GPIO_EXTIPSELL);	//Set all pins to trigger interrupt
+	iowrite32(0xFF,		gpio_mem+GPIO_EXTIFALL);	//Set pins to trigger interrupt on falling edge
+	iowrite32(0xFF,		gpio_mem+GPIO_EXTIRISE);	//Set pins to trigger interrupt on rising edge
+	iowrite32(0xFF,		gpio_mem+GPIO_IEN);		//Set pins to trigger interrupt on rising edge
+	
 	// Register handler for irq numbers 17 and 18 (odd and even GPIO)
-	int result = request_irq(17, GPIO_handler, 0, "driver_gamepad", NULL); // Register GPIO odd handler
-	if(result) {
-		printk(KERN_ERR"Failed to allocate GPIO odd handler\n");
+	int irq = platform_get_irq(dev, GPIO_ODD_IRQ_INDEX);
+	if(irq == -ENXIO) {
+		printk(KERN_ERR"Failed to retrieve GPIO odd irq index from platform\n");
 		return -1;
 	}
-	result = request_irq(18, GPIO_handler, 0, "driver_gamepad", NULL); // Register GPIO even handler
+	int result = request_irq(irq, GPIO_handler, 0, "driver_gamepad", NULL);
+	if(result) {
+		printk(KERN_ERR"Failed to allocate GPIO odd handler %d\n", result);
+		return -1;
+	}
+
+	irq = platform_get_irq(dev, GPIO_EVEN_IRQ_INDEX);
+	if(irq == -ENXIO) {
+		printk(KERN_ERR"Failed to retrieve GPIO even irq index from platform\n");
+		return -1;
+	}
+	result = request_irq(irq, GPIO_handler, 0, "driver_gamepad", NULL);
 	if(result) {
 		printk(KERN_ERR "Failed to allocate GPIO even handler\n");
 		return -1;
@@ -96,20 +127,46 @@ static int __init template_init(void)
 		printk(KERN_ERR "Failed to add cdev\n");
 		return -1;
 	}
+	
+	return 0;
+}
+
+static int my_remove(struct platform_device *dev) {
+	printk("ran my_remove\n");
+}
+
+static const struct of_device_id my_of_match[] = {
+	{.compatible = "tdt4258"},
+	{},
+};
+
+
+MODULE_DEVICE_TABLE(of, my_of_match);
+
+static struct platform_driver my_driver = {
+	.probe	=	my_probe,
+	.remove	=	my_remove,
+	.driver	=	{
+				.name = "gamepad-driver",
+				.owner = THIS_MODULE,
+				.of_match_table = my_of_match,
+			},
+};
+
+static int __init template_init(void)
+{
+	platform_driver_register(&my_driver);
 
 	return 0;
 }
 
 static void __exit template_cleanup(void)
 {
-	device_destroy(cl, devnum); // Remove the device file
-	class_destroy(cl); // Remove the class handle
+	device_destroy(cl, devnum);		// Remove the device file
+	class_destroy(cl);			// Remove the class handle
 
-	cdev_del(&my_cdev); // Remove device from system
-	unregister_chrdev_region(devnum, 1); // Release device number
-	printk("Stopped driver\n");
-
-	return 0;
+	cdev_del(&my_cdev);			// Remove device from system
+	unregister_chrdev_region(devnum, 1);	// Release device number
 }
 
 module_init(template_init);
