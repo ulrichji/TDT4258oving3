@@ -630,10 +630,6 @@ int playLevel(uint16_t *screen,int *level,int lives,int fd)
 		//sleep the remaining time of this frame.
 		long sleepTime = SLEEPTIME - (endTime - startTime);
 
-		/*long nextTime = endTime + sleepTime;
-		if(sleepTime > 0)
-			while(getTime() < nextTime);*/
-
 		//sleep the remaining time of this frame if there is any time left.
 		if(sleepTime > 0)
 			usleep((int)sleepTime);

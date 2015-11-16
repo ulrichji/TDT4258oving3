@@ -132,7 +132,14 @@ static int my_probe(struct platform_device *dev) {
 }
 
 static int my_remove(struct platform_device *dev) {
-	printk("ran my_remove\n");
+	device_destroy(cl, devnum);		// Remove the device file
+	class_destroy(cl);			// Remove the class handle
+
+	cdev_del(&my_cdev);			// Remove device from system
+	unregister_chrdev_region(devnum, 1);	// Release device number
+
+	struct resource *res = platform_get_resource(dev, IORESOURCE_MEM, GPIO_MEM_INDEX); // Get device resources so we can release them
+	release_mem_region(res->start, res->end - res->start); // Release GPIO memory
 }
 
 static const struct of_device_id my_of_match[] = {
@@ -162,11 +169,7 @@ static int __init template_init(void)
 
 static void __exit template_cleanup(void)
 {
-	device_destroy(cl, devnum);		// Remove the device file
-	class_destroy(cl);			// Remove the class handle
-
-	cdev_del(&my_cdev);			// Remove device from system
-	unregister_chrdev_region(devnum, 1);	// Release device number
+	
 }
 
 module_init(template_init);
